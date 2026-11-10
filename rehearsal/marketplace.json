@@ -7,12 +7,12 @@
   "plugins": [
     {
       "name": "uncapped",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "description": "A portfolio career builder.",
       "source": {
         "source": "archive",
-        "url": "https://thegabrielaflax.github.io/uncapped/rehearsal/uncapped-0.3.0.zip",
-        "sha256": "b95f2c99ebfc625132caf3ff5ccbe0d2fabced0c3a7addce8a6c860d7c409420"
+        "url": "https://thegabrielaflax.github.io/uncapped/rehearsal/uncapped-0.3.1.zip",
+        "sha256": "661146ea4d8bcce144d09faa2c72841c543b3ebb59b92e7872bbaf7b261136fa"
       }
     }
   ]
