@@ -1,0 +1,8 @@
+{
+  "name": "pivot-school",
+  "description": "Uncapped by Pivot School",
+  "owner": { "name": "Pivot School" },
+  "plugins": [
+    { "name": "uncapped", "source": "./plugins/uncapped", "description": "A portfolio career builder: ten builders that find what you could get paid for, then package, price and pitch it." }
+  ]
+}
