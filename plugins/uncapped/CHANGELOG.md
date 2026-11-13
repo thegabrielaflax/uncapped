@@ -1,5 +1,9 @@
 # What's new in Uncapped
 
+## 0.4.1
+- **Uncapped now installs from Pivot School's GitHub repository.** Claude changed which addresses it accepts for plugins, so the install address is now `thegabrielaflax/uncapped`. Nothing changes for you if Uncapped is already installed.
+- **Update checking fixed.** The panel reads the published version from the new home, so "Update to" appears again when there's something new.
+
 ## 0.4.0
 - **A new look for the whole panel.** Calmer, clearer screens with one next move at the top of each, your numbers at a glance, and fewer things to open and close.
 - **Home.** Once you've started, the panel opens on Home: your next move, how your outreach and posts stand, your offers and your path.

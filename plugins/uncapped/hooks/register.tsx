@@ -1079,10 +1079,13 @@ async function checkForUpdates($) {
   }
 }
 
-// Pivot School's public list of versions. Read once a session so the bar above
-// the message box can say when a newer Uncapped is ready; nothing about the
-// person is sent. Only for the customer install, never a preview or test copy.
-const RELEASES = 'https://thegabrielaflax.github.io/uncapped/marketplace.json'
+// The published version of Uncapped, read from the plugin's own manifest in
+// Pivot School's public repository. Read once a session so the bar above the
+// message box can say when a newer Uncapped is ready; nothing about the person
+// is sent. Only for the customer install, never a preview or test copy.
+// GitHub Pages will not serve a folder beginning with a dot, so this reads the
+// file from the repository itself.
+const RELEASES = 'https://raw.githubusercontent.com/thegabrielaflax/uncapped/main/plugins/uncapped/.claude-plugin/plugin.json'
 
 function isNewer(a, b) {
   const parts = (v) => String(v || '').split('-')[0].split('.').map((n) => parseInt(n, 10) || 0)
@@ -1095,7 +1098,7 @@ async function noteLatest($) {
   if ((await pluginId($)) !== 'uncapped@pivot-school') return
   const r = await $.http.fetch(RELEASES)
   if (!r?.ok) return
-  const v = JSON.parse(r.text || '{}')?.plugins?.find((p) => p?.name === 'uncapped')?.version
+  const v = JSON.parse(r.text || '{}')?.version
   if (typeof v === 'string' && isNewer(v, VERSION)) await setUi($, { latest: v })
 }
 
