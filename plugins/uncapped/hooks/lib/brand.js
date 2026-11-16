@@ -7,7 +7,7 @@
 //   Caveat             -> Bradley Hand / Noteworthy
 //   Fraunces italic    -> Georgia bold italic
 
-export const C = {
+const CL = {
   cream: '#F7F5ED',
   paper: '#EEEAE0',
   white: '#FFFFFF',
@@ -32,6 +32,38 @@ export const C = {
   line: '#D9D0C3', // hairline borders on item cards
 }
 
+// The same brand colours for dark mode (16 Nov 2026). The grounds go espresso,
+// the inks go light, and the accents that already read on a dark ground keep
+// their hue. Checked against design-system/contrast.py.
+const CD = {
+  cream: '#1F1815',
+  paper: '#2A1F1D',
+  white: '#2A1F1D', // "white" means the raised card, which is espresso here
+  espresso: '#F3EDE4',
+  ink: '#E3DCD1',
+  taupeInk: '#B8AC9D',
+  taupe: '#8F8273',
+  taupeLight: '#5A4B43',
+  sand: '#6B5F53',
+  blue: '#9AA2FF',
+  blueTint: '#20244A',
+  blueLight: '#2A2F57',
+  pink: '#F4A6B8',
+  pinkTint: '#3E2129',
+  butter: '#FFD45C',
+  butterTint: '#3A3019',
+  green: '#6FD19C',
+  greenTint: '#16332A',
+  hoverWhite: '#332723',
+  hoverButter: '#463A1D',
+  line: '#5A4B43',
+}
+
+// The live brand palette every drawing reads. setTheme() below swaps its values
+// in place rather than replacing the object, so every module that imported it
+// keeps working without re-importing.
+export const C = { ...CL }
+
 // Spacing, in cells. Only these values: a label right above its value, inside
 // a card or between list items, and between the slots of a screen.
 export const S = { none: 0, tight: 1, section: 2 }
@@ -39,23 +71,11 @@ export const S = { none: 0, tight: 1, section: 2 }
 // The five ways to earn, from the lightest commitment to the deepest. Their
 // colors appear only on lens chips, idea-card spines and the lens artwork.
 export const LENS_ORDER = ['publish', 'package', 'teach', 'with', 'for']
-export const LENS = {
-  publish: { id: 'publish', name: 'Publish it', line: 'Write it once for many readers.', color: C.sand, text: C.espresso, border: C.espresso, does: 'Write it once', gets: 'Something to read and use on their own', time: 'Almost none per sale', price: 'Lowest' },
-  package: { id: 'package', name: 'Package it', line: 'Make a tool once and they use it themselves.', color: C.espresso, text: C.cream, border: C.espresso, does: 'Make a tool once', gets: 'A tool to use on their own', time: 'Almost none per sale', price: 'Low' },
-  teach: { id: 'teach', name: 'Teach them how', line: 'You teach a group and they do it themselves.', color: C.butter, text: C.espresso, border: C.espresso, does: 'Teach a group', gets: 'The skill, and a plan to apply it', time: 'A few hours per group', price: 'Low per seat, many seats' },
-  with: { id: 'with', name: 'Do it with them', line: "You work side by side until it's done.", color: C.pink, text: C.espresso, border: C.espresso, does: 'Work side by side', gets: 'It done, and they learned how', time: 'Hours per client', price: 'Middle' },
-  for: { id: 'for', name: 'Do it for them', line: 'You do it and hand it over finished.', color: C.blue, text: C.white, border: C.espresso, does: 'Do the work', gets: 'It done, handed over', time: 'The most', price: 'Highest' },
-}
+export const LENS = {} // filled by setTheme(), which needs the V palette below
 
 // The builders, in the order a portfolio career gets built, grouped in phases.
 // Only live steps show; the number shown is the step's place among live steps.
-export const PHASES = {
-  find: { name: 'Find it', color: C.butter, text: C.espresso },
-  shape: { name: 'Shape it', color: C.pink, text: C.espresso },
-  sell: { name: 'Sell it', color: C.blue, text: C.white },
-  show: { name: 'Show up', color: C.sand, text: C.espresso },
-  run: { name: 'Run it', color: C.paper, text: C.espresso },
-}
+export const PHASES = {} // filled by setTheme(), as LENS is
 export const STEPS = [
   { id: 'discover', n: 1, name: 'Discover', phase: 'find', promise: 'what you could get paid for', live: true },
   { id: 'offer', n: 2, name: 'Your offer', phase: 'find', promise: 'the idea worth testing first', live: true },
@@ -825,7 +845,7 @@ export function dotsSvg({ done, total, size = 6 }) {
 // (VD). Components read T, never a raw hex. Claude Desktop doesn't tell a
 // panel its appearance (Claude Code 2.1.321), so T is the light set for now;
 // VD is kept ready and checked by design-system/contrast.py.
-export const V = {
+const VL = {
   bg: '#F7F5ED', surface: '#FFFFFF', inset: '#EEEAE0', hover: '#FBFAF5', line: '#D9D0C3', lineStrong: '#2A1F1D',
   heading: '#2A1F1D', body: '#1F1815', meta: '#6B5F53', disabled: '#8F8273',
   accent: '#2B3BFF', accentFill: '#2B3BFF', onAccent: '#FFFFFF', wordmark: '#2B3BFF',
@@ -856,6 +876,49 @@ export const VD = {
   washPink: '#35232A', washButter: '#332B1A', washBlue: '#1F2238', washGreen: '#17291F',
   spinePink: '#F4A6B8', spineButter: '#FFD45C', spineGreen: '#6FD19C',
 }
+// The live semantic palette. Components read V (and T, which is the same
+// object), never VL or VD, so swapping its values in place themes everything
+// already drawn from it.
+export const V = { ...VL }
+
+// The five ways to earn and the phases, rebuilt whenever the theme changes.
+// Both read V's lens tokens rather than raw brand colours, because the text on
+// a butter or pink fill has to stay dark in either theme.
+const lensSpec = () => ({
+  publish: { id: 'publish', name: 'Publish it', line: 'Write it once for many readers.', color: V.lensPublish, text: V.onLensPublish, border: V.lineStrong, does: 'Write it once', gets: 'Something to read and use on their own', time: 'Almost none per sale', price: 'Lowest' },
+  package: { id: 'package', name: 'Package it', line: 'Make a tool once and they use it themselves.', color: V.lensPackage, text: V.onLensPackage, border: V.lineStrong, does: 'Make a tool once', gets: 'A tool to use on their own', time: 'Almost none per sale', price: 'Low' },
+  teach: { id: 'teach', name: 'Teach them how', line: 'You teach a group and they do it themselves.', color: V.lensTeach, text: V.onLensTeach, border: V.lineStrong, does: 'Teach a group', gets: 'The skill, and a plan to apply it', time: 'A few hours per group', price: 'Low per seat, many seats' },
+  with: { id: 'with', name: 'Do it with them', line: "You work side by side until it's done.", color: V.lensWith, text: V.onLensWith, border: V.lineStrong, does: 'Work side by side', gets: 'It done, and they learned how', time: 'Hours per client', price: 'Middle' },
+  for: { id: 'for', name: 'Do it for them', line: 'You do it and hand it over finished.', color: V.lensFor, text: V.onLensFor, border: V.lineStrong, does: 'Do the work', gets: 'It done, handed over', time: 'The most', price: 'Highest' },
+})
+const phaseSpec = () => ({
+  find: { name: 'Find it', color: V.lensTeach, text: V.onLensTeach },
+  shape: { name: 'Shape it', color: V.lensWith, text: V.onLensWith },
+  sell: { name: 'Sell it', color: V.lensFor, text: V.onLensFor },
+  show: { name: 'Show up', color: V.lensPublish, text: V.onLensPublish },
+  run: { name: 'Run it', color: V.inset, text: V.heading },
+})
+
+// The panel's one theme switch. Claude Desktop still doesn't tell a panel
+// whether it is drawn light or dark (checked again on Claude Code 2.1.325:
+// ButtonProps has no colour, and nothing hands a mod the appearance), so the
+// person chooses in Updates and help and the choice is saved with their work.
+// Every palette is mutated in place, never replaced, because ui2's T and the
+// v2 modules hold this very object.
+export let THEME = 'light'
+export function setTheme(mode) {
+  const dark = mode === 'dark'
+  THEME = dark ? 'dark' : 'light'
+  Object.assign(C, dark ? CD : CL)
+  Object.assign(V, dark ? VD : VL)
+  for (const k of Object.keys(LENS)) delete LENS[k]
+  Object.assign(LENS, lensSpec())
+  for (const k of Object.keys(PHASES)) delete PHASES[k]
+  Object.assign(PHASES, phaseSpec())
+  return THEME
+}
+setTheme('light')
+
 // The lens fill and the text that sits on it, by way of earning.
 export const LENS_FILL = { publish: ['lensPublish', 'onLensPublish'], package: ['lensPackage', 'onLensPackage'], teach: ['lensTeach', 'onLensTeach'], with: ['lensWith', 'onLensWith'], for: ['lensFor', 'onLensFor'] }
 

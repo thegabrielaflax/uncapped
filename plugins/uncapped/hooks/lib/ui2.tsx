@@ -7,8 +7,9 @@
 
 import { V, S, LENS, LENS_FILL, barSvg } from './brand.js'
 
-// Claude Desktop doesn't tell a panel its light or dark setting (Claude Code
-// 2.1.321), so version 2 draws light. VD in brand.js holds the dark set.
+// T is brand.js's live palette object, not a copy: setTheme() swaps its values
+// in place, so everything below follows the person's light or dark choice.
+// Read T.x inside a function, never into a module-level constant.
 export const T = V
 export { S }
 
@@ -51,7 +52,7 @@ export function Grid(E, key, items, wide, width = '48%') {
 }
 
 // ---- cards. Every card has one tone; two strong ones per screen at most.
-const TONES = {
+const tones = () => ({
   next: { bg: T.nextBg, border: T.nextBorder, hover: T.nextHover },
   decide: { bg: T.decideBg, border: T.decideBorder },
   working: { bg: T.workingBg, border: T.workingBorder },
@@ -64,8 +65,9 @@ const TONES = {
   washButter: { bg: T.washButter },
   washBlue: { bg: T.washBlue },
   washGreen: { bg: T.washGreen },
-}
+})
 export function Panel(E, key, tone, children, props = {}) {
+  const TONES = tones()
   const t = TONES[tone] || TONES.surface
   return (
     <E.Box key={key} flexDirection="column" gap={S.tight} paddingX={2} paddingY={1} backgroundColor={t.bg} {...(t.border ? { borderStyle: t.dashed ? 'dashed' : 'round', borderColor: t.border } : {})} {...(t.hover && key ? { hover: { backgroundColor: t.hover } } : {})} {...props}>
@@ -77,6 +79,7 @@ export function Panel(E, key, tone, children, props = {}) {
 // A card with a coloured left edge and an optional wash behind it, so kinds of
 // block look different at a glance (11 Nov: less beige, more variation).
 export function SpineCard(E, key, spine, children, tone = 'surface') {
+  const TONES = tones()
   const t = TONES[tone] || TONES.surface
   return (
     <E.Box key={key} flexDirection="row" backgroundColor={t.bg} {...(tone === 'surface' ? { borderStyle: 'round', borderColor: T.line } : {})}>
@@ -103,7 +106,7 @@ export function NextCard(E, key, { label = 'Your next move', title, body, foot, 
 }
 
 // Chips (7.12): sentence case, at most one per row or card.
-const CHIP = {
+const chips = () => ({
   done: { bg: T.doneBg, fg: T.doneText, border: T.doneBorder },
   here: { bg: T.surface, fg: T.accent, border: T.accent },
   quiet: { bg: T.inset, fg: T.meta, border: T.line },
@@ -111,9 +114,10 @@ const CHIP = {
   pick: { bg: T.nextBg, fg: T.heading, border: T.nextBorder },
   decide: { bg: T.decideBg, fg: T.heading, border: T.decideBorder },
   working: { bg: T.workingBg, fg: T.heading, border: T.workingBorder },
-}
+})
 export function Chip(E, key, text, kind = 'quiet') {
   const lens = String(kind).startsWith('lens:') ? String(kind).slice(5) : null
+  const CHIP = chips()
   const t = lens && LENS_FILL[lens] ? { bg: T[LENS_FILL[lens][0]], fg: T[LENS_FILL[lens][1]], border: T[LENS_FILL[lens][0]] } : CHIP[kind] || CHIP.quiet
   return (
     <E.Box key={key} paddingX={1} borderStyle="round" borderColor={t.border} backgroundColor={t.bg} alignSelf="flex-start" flexShrink={0}>
@@ -333,9 +337,10 @@ export function JumpBar(E, key, items) {
     </E.Box>
   )
 }
-const NUMFILL = [[T.accentFill, T.onAccent], [T.lensWith, T.onLensWith], [T.lensTeach, T.onLensTeach], [T.spineGreen, '#FFFFFF'], [T.lensPackage, T.onLensPackage], [T.lensPublish, T.onLensPublish]]
+const numFill = () => [[T.accentFill, T.onAccent], [T.lensWith, T.onLensWith], [T.lensTeach, T.onLensTeach], [T.spineGreen, T.onAccent], [T.lensPackage, T.onLensPackage], [T.lensPublish, T.onLensPublish]]
 // A numbered section head (7.15): number, name, the answer in semibold, ↑ Top.
 export function NumHead(E, key, { n, title, answer, onTop }) {
+  const NUMFILL = numFill()
   return (
     <E.Box key={key} flexDirection="row" gap={1} alignItems="flex-start">
       <E.Box key={`${key}-n`} flexShrink={0} paddingX={1} backgroundColor={NUMFILL[(Number(n) - 1) % NUMFILL.length]?.[0] || T.accentFill}><E.Text size="heading" weight="bold" color={NUMFILL[(Number(n) - 1) % NUMFILL.length]?.[1] || T.onAccent}>{String(n)}</E.Text></E.Box>

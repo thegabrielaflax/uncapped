@@ -14,6 +14,12 @@ export type UncappedNav = {
 export type UncappedUi = {
   ws: string
   version: string
+  // the panel's light or dark palette, the person's own choice (saved in $.store)
+  theme?: 'light' | 'dark'
+  // whether they have answered the light-or-dark question yet: until they have,
+  // the panel asks, above every screen. It can't be read off the theme alone,
+  // where unanswered and a deliberate "light" look the same.
+  themeSet?: boolean
   readOnly: boolean
   notice: string | null
   error: string | null

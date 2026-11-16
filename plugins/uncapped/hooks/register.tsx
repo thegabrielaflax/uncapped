@@ -13,7 +13,7 @@ import { V, serifTitleSvg, barSvg, fontsLoaded } from './lib/brand.js'
 import * as U2 from './lib/ui2.tsx'
 import { F10Screen, PersonScreen, PeopleScreen, first10Next } from './lib/v2-first10.tsx'
 import { SubstackScreen, PostScreen, StrategyProgress } from './lib/v2-substack.tsx'
-import { C, S, LENS, LENS_ORDER, LIVE_STEPS, STEPS, PHASES, plantingSvg, pathSvg, dotsSvg, stepHeadSvg, lensLadderSvg, skillLadderSvg, portfolioLadderSvg, funnelSvg, promiseSvg, arcSvg, welcomeSvg, celebrateSvg, builderMapSvg2, routeMapSvg, offerCardSvg3, thinkingSvg, pxFor, headerSvg2, wordmarkSvg, pivotSvg, titleSvg, noteSvg, polaroidSvg2, builderMapSvg, gardenSvg, offerCardSvg2 } from './lib/brand.js'
+import { C, S, setTheme, LENS, LENS_ORDER, LIVE_STEPS, STEPS, PHASES, plantingSvg, pathSvg, dotsSvg, stepHeadSvg, lensLadderSvg, skillLadderSvg, portfolioLadderSvg, funnelSvg, promiseSvg, arcSvg, welcomeSvg, celebrateSvg, builderMapSvg2, routeMapSvg, offerCardSvg3, thinkingSvg, pxFor, headerSvg2, wordmarkSvg, pivotSvg, titleSvg, noteSvg, polaroidSvg2, builderMapSvg, gardenSvg, offerCardSvg2 } from './lib/brand.js'
 import {
   FILES, freshWork, activeOffer, priceText, OFFER_FIELDS, flagReviews, changeMessage, reviewStatus,
   basedOnNow, pushHistory, builderStatus, changedPaths, getPath, setPath, now, ASSET_NAME, listNames, applyOfferChange,
@@ -45,6 +45,7 @@ const SAVE_RESEARCH = `mcp__${PLUGIN}__save_research`
 const INITIAL_UI = {
   ws: 'unknown', version: '', readOnly: false, notice: null, error: null, retry: null, busy: null, op: null, opNote: null,
   drafts: {}, editing: null, showExample: null, update: null, confirm: null, feedback: null, trail: [], lastAction: null, pendingFindings: null,
+  theme: 'light', themeSet: false,
 }
 
 const navA = atom({ plugin: 'uncapped', key: 'nav' } as const, { view: 'home' }, { shape: 'nav-1' })
@@ -103,8 +104,19 @@ async function boot($) {
   }
   fontsLoaded(FONTS)
 
+  let theme = 'light'
+  // themeSet is whether they have ever answered the light-or-dark question.
+  // It can't be read off the theme itself: unanswered and "light" look the same.
+  let themeSet = false
+  try {
+    const t = await $.store.get('theme')
+    themeSet = t === 'dark' || t === 'light'
+    theme = t === 'dark' ? 'dark' : 'light'
+  } catch (e) {}
+  applyTheme(theme)
+
   const ws = await detectWorkspace($)
-  await update($, uiA, (u) => ({ ...INITIAL_UI, ...(u || {}), ws: ws.state, cwd: ws.cwd, version: VERSION, busy: null, op: null, opNote: null }))
+  await update($, uiA, (u) => ({ ...INITIAL_UI, ...(u || {}), ws: ws.state, cwd: ws.cwd, version: VERSION, busy: null, op: null, opNote: null, theme, themeSet }))
   if (ws.state === 'ready') {
     try {
       const t = await $.clock.now()
@@ -3612,6 +3624,41 @@ function ProfileView($, c) {
   return out
 }
 
+// Light or dark, the person's own choice: Claude Desktop doesn't tell a panel
+// which it is drawing in, and a Button takes its label colour from the app's
+// theme, so a light panel under a dark app gives white text on cream. The
+// choice is kept in $.store, so it survives a new chat and an update, and the
+// pane is re-opened to pick up its new background.
+async function setPanelTheme($, mode) {
+  const m = applyTheme(mode)
+  try { await $.store.set('theme', m) } catch (e) {}
+  await update($, uiA, (u) => ({ ...u, theme: m, themeSet: true }))
+  try { await $.ui.open({ id: PANE, title: 'Uncapped', backgroundColor: C.cream, columns: 120 }) } catch (e) {}
+}
+
+// The one question a new person has to answer, because Claude can't answer it
+// for us: light or dark. Until they do, this stands above every screen.
+// Lorraine (16 Nov) was in dark mode with no way of knowing the choice existed,
+// and the thing that can't carry that message is a button label, since a washed-out
+// label is the symptom. So the words do the work: the question is about the
+// buttons themselves, and the last line says what to press when they can't be read.
+function ThemeFirstRun($, c, always) {
+  const { E, ui } = c
+  if (ui.themeSet) return []
+  // Home, where every new chat opens, or the welcome. Not the other screens:
+  // each of those has one strong button of its own and this would crowd it.
+  if (!always && c.nav?.view !== 'home') return []
+  return [U2.Panel(E, 'theme-first', 'decide', [
+    U2.Cap(E, 'theme-first-l', 'First, one thing'),
+    U2.Body(E, 'theme-first-t', "Claude can't tell this panel whether you're using light or dark mode, so it starts light. Can you read the words on the two buttons below?"),
+    U2.Line(E, 'theme-first-a', [
+      Btn(E, 'theme-first-dark', "No \u2014 switch to dark", () => setPanelTheme($, 'dark'), true),
+      Btn(E, 'theme-first-light', 'Yes, they look fine', () => setPanelTheme($, 'light')),
+    ]),
+    U2.Meta(E, 'theme-first-m', "If they look washed out, you're in dark mode and this panel isn't yet: press the first button, on the left. You can change it any time in Updates & help."),
+  ])]
+}
+
 function SettingsView($, c) {
   const { E, ui, work } = c
   if (work && isWorkshop(work)) {
@@ -3631,6 +3678,15 @@ function SettingsView($, c) {
         sw('help-sw-p', V.decideBg, V.decideBorder, 'Pink', 'needs a decision from you.'),
         sw('help-sw-b', V.workingBg, V.workingBorder, 'Blue', 'means Claude is working.'),
         sw('help-sw-g', V.doneBg, V.doneBorder, 'Green', 'is done.'),
+      ]),
+      U2.Panel(E, 'help-theme', 'surface', [
+        U2.Cap(E, 'help-theme-l', 'Light or dark'),
+        U2.Body(E, 'help-theme-t', "Claude can't tell this panel whether you're in light or dark mode, so choose the one that matches. If words on the buttons are hard to read, you're on the wrong one."),
+        U2.Line(E, 'help-theme-a', [
+          Btn(E, 'theme-light', ui.theme === 'dark' ? 'Light' : '\u25cf  Light', () => setPanelTheme($, 'light'), ui.theme === 'dark' ? 'plain' : true),
+          Btn(E, 'theme-dark', ui.theme === 'dark' ? '\u25cf  Dark' : 'Dark', () => setPanelTheme($, 'dark'), ui.theme === 'dark' ? true : 'plain'),
+        ]),
+        U2.Meta(E, 'help-theme-m', 'Uncapped remembers your choice, in this chat and the next.'),
       ]),
       U2.Panel(E, 'help-updates', 'surface', [
         U2.Cap(E, 'help-updates-l', 'Updates'),
@@ -3668,6 +3724,14 @@ function SettingsView($, c) {
       Row(E, [Btn(E, 'check-updates', 'Check for updates', () => checkForUpdates($), true)]),
       ui.update ? T(E, ui.update.text) : null,
     ]),
+    Card(E, [
+      Label(E, 'Light or dark'),
+      T(E, "Claude can't tell this panel whether you're in light or dark mode, so choose the one that matches. If words on the buttons are hard to read, you're on the wrong one."),
+      Row(E, [
+        Btn(E, 'theme-light', ui.theme === 'dark' ? 'Light' : '\u25cf  Light', () => setPanelTheme($, 'light'), ui.theme !== 'dark'),
+        Btn(E, 'theme-dark', ui.theme === 'dark' ? '\u25cf  Dark' : 'Dark', () => setPanelTheme($, 'dark'), ui.theme === 'dark'),
+      ]),
+    ], { tint: C.cream }),
     Card(E, [
       Label(E, 'Your work'),
       T(E, 'Everything is in the my-work folder inside this folder: uncapped.json holds it all, kit has readable copies of each builder, backups has copies taken before updates.'),
@@ -4932,8 +4996,25 @@ async function keepOffer($) {
 // one offer at a time when you open it, and one to start with.
 const GARDEN_COPY = "Look through a few offers and pick the one you'd be most excited to try first. We'll use it to build your plan for finding your first 10 customers and your Substack marketing strategy. You can come back and build a separate plan for another offer whenever you're ready."
 const NEXT_COPY = "Start here to build your first 10 customers plan and Substack strategy. You can come back for another offer whenever you're ready."
-const G = { card: '#FFFDF8', ink: '#2D221E', gray: '#655A52', stone: '#D9CFC1', marigold: '#FFD45C', paleYellow: '#FFF3C7', paleGreen: '#E8EDE2', paleBlue: '#E8EDF6', sand: '#F0E8DC' }
-const LENS_TINT = { publish: '#EFE9DF', package: '#E9E4DE', teach: '#FFF1C2', with: '#FBE3E9', for: '#E5E8FF' }
+// The garden's own palette, light and dark. Marigold stays as it is in both:
+// it is only ever a border or a one-cell spine, never a ground under text.
+const GL = { card: '#FFFDF8', ink: '#2D221E', gray: '#655A52', stone: '#D9CFC1', marigold: '#FFD45C', paleYellow: '#FFF3C7', paleGreen: '#E8EDE2', paleBlue: '#E8EDF6', sand: '#F0E8DC', area: '#FAF7F0' }
+const GD = { card: '#2A1F1D', ink: '#E3DCD1', gray: '#B8AC9D', stone: '#5A4B43', marigold: '#FFD45C', paleYellow: '#3A3019', paleGreen: '#16332A', paleBlue: '#20244A', sand: '#362A26', area: '#241C19' }
+const G = { ...GL }
+const LENS_TINT_L = { publish: '#EFE9DF', package: '#E9E4DE', teach: '#FFF1C2', with: '#FBE3E9', for: '#E5E8FF' }
+const LENS_TINT_D = { publish: '#332A24', package: '#2E2622', teach: '#3A3019', with: '#3E2129', for: '#20244A' }
+const LENS_TINT = { ...LENS_TINT_L }
+
+// One switch for the whole panel: brand.js's palettes and the garden's own.
+// Called before every draw, because a hot reload resets these module values
+// while the saved choice lives on.
+function applyTheme(mode) {
+  const dark = mode === 'dark'
+  setTheme(dark ? 'dark' : 'light')
+  Object.assign(G, dark ? GD : GL)
+  Object.assign(LENS_TINT, dark ? LENS_TINT_D : LENS_TINT_L)
+  return dark ? 'dark' : 'light'
+}
 const DO_HEADING = { publish: "What you'd write", package: "What you'd make", teach: "What you'd teach", with: "What you'd do together", for: "What you'd do" }
 const ideaFormat = (i) => String(i.format || LENS[i.lens]?.name || '').trim()
 const ideaChange = (i) => String(i.change || '').trim() || firstSentence(i.how || i.why || '')
@@ -5991,7 +6072,7 @@ function MessageArea($, c, x) {
   const newer = msgIsNewer(t)
   const label = !sent ? 'Saved message, ready to send' : newer ? 'New draft, ready to send' : `Saved message, marked sent${t.sentAt && t.sentDateKnown !== false && !/^2000-/.test(t.sentAt) ? ` ${dayText(t.sentAt)}` : ''}`
   const sentVersion = newer ? (t.drafts || []).find((m) => m.sentAt) : null
-  const area = (key, text) => <E.Box key={key} paddingX={2} paddingY={1} backgroundColor="#FAF7F0"><E.Text color={G.ink} wrap="wrap">{String(text)}</E.Text></E.Box>
+  const area = (key, text) => <E.Box key={key} paddingX={2} paddingY={1} backgroundColor={G.area}><E.Text color={G.ink} wrap="wrap">{String(text)}</E.Text></E.Box>
   if (ui.f10edit === x.slot) {
     return (
       <E.Box key={`f10-msg-${x.slot}`} flexDirection="column" gap={S.tight}>
@@ -6308,7 +6389,7 @@ function CopyArea($, c, key, text, label, bg) {
   const { E, ui } = c
   return (
     <E.Box key={key} flexDirection="column" gap={S.tight}>
-      <E.Box paddingX={2} paddingY={1} backgroundColor={bg || '#FAF7F0'}><E.Text color={G.ink} wrap="wrap">{String(text)}</E.Text></E.Box>
+      <E.Box paddingX={2} paddingY={1} backgroundColor={bg || G.area}><E.Text color={G.ink} wrap="wrap">{String(text)}</E.Text></E.Box>
       <E.Box flexDirection="row">{Btn(E, `${key}-copy`, ui.ssCopied === key ? 'Copied' : label, async () => { await copyText($, text, 'Copied. Paste it where you write.'); await setUi($, { ssCopied: key }) })}</E.Box>
     </E.Box>
   )
@@ -6639,7 +6720,7 @@ function BriefText(c, key, t, glyph = '•') {
     }
     if (x.kind === 'sample') {
       return (
-        <E.Box key={k} flexDirection="column" gap={S.tight} paddingX={2} paddingY={1} backgroundColor="#FAF7F0">
+        <E.Box key={k} flexDirection="column" gap={S.tight} paddingX={2} paddingY={1} backgroundColor={G.area}>
           {x.lines.map((l, m) => BriefLine(E, `${k}-${m}`, l, null))}
         </E.Box>
       )
@@ -7326,7 +7407,7 @@ function WsRender($, c) {
   // (an answer saved, or the chat asking its first question) moves the panel on.
   if (!work.onboarding?.seen && c.nav.view !== 'discover' && !discoverStarted(work, c.ui)) {
     const body = WsWelcome($, c)
-    return [...Header($, c), HandoffCard($, c), ...NoticeSlot($, c, ''), ...body, Footer(c)].filter(Boolean)
+    return [...Header($, c), HandoffCard($, c), ...ThemeFirstRun($, c, true), ...NoticeSlot($, c, ''), ...body, Footer(c)].filter(Boolean)
   }
   const nav = (c.nav.view === 'builder' && !WS_PLANS.includes(c.nav.builder) && c.nav.builder !== 'discover') || ['tests', 'profile', 'plan', 'tour'].includes(c.nav.view) ? landingFor(work) : c.nav
   const cur = stepOf(nav)
@@ -7352,7 +7433,7 @@ function WsRender($, c) {
   else if (nav.view === 'designart') body = ArtworkGallery($, cc)
   else body = WsDiscover($, cc)
   c.places = cc.places
-  const content = [HandoffCard($, cc), ...NoticeSlot($, cc, cur), ...body].filter(Boolean)
+  const content = [HandoffCard($, cc), ...ThemeFirstRun($, cc), ...NoticeSlot($, cc, cur), ...body].filter(Boolean)
   const footer = StepFooter($, cc, cur)
   const hc = { ...c, px: Math.min(full, 1600) }
   if (wide) {
@@ -7388,7 +7469,7 @@ function render($, c) {
   else if (nav.view === 'plan') body = PlanView($, c)
   else if (nav.view === 'report') body = ReportView($, c)
   else body = HomeView($, c)
-  return [...Header($, c), ...Banners($, c), ...body, Footer(c)]
+  return [...Header($, c), ...ThemeFirstRun($, c), ...Banners($, c), ...body, Footer(c)]
 }
 
 function homeNumbers(work) {
@@ -8651,6 +8732,7 @@ export const register: Register = (on) => {
     const work = await read($, workA)
     const nav = await read($, navA)
     const px = pxFor(e.props?.bodyColumns)
+    applyTheme(ui?.theme)
     if (PLUGIN !== 'uncapped') {
       try { const row = (await $.config.list()).find((r) => r.key === 'theme'); THEME_PROBE = row ? String(row.value ?? row.current ?? JSON.stringify(row)).slice(0, 80) : 'no theme row' } catch (err) { THEME_PROBE = `couldn't read: ${String(err?.message || err).slice(0, 60)}` }
     }

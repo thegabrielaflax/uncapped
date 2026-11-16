@@ -1,5 +1,9 @@
 # What's new in Uncapped
 
+## 0.4.2
+- **The panel now comes in light or dark.** If you use Claude in dark mode, the panel used to show white words on its cream background, which made buttons and the steps down the left very hard to read. Uncapped now asks you once, on Home, which one you're in, and you can change it any time in **Updates & help**. It remembers your choice, in this chat and the next.
+- Thank you to Lorraine, who reported this.
+
 ## 0.4.1
 - **Uncapped now installs from Pivot School's GitHub repository.** Claude changed which addresses it accepts for plugins, so the install address is now `thegabrielaflax/uncapped`. Nothing changes for you if Uncapped is already installed.
 - **Update checking fixed.** The panel reads the published version from the new home, so "Update to" appears again when there's something new.
