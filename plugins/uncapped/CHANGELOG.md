@@ -1,5 +1,9 @@
 # What's new in Uncapped
 
+## 0.5.2
+- **"Open my pages" works now.** It was failing with "command not found": Claude was being told to run something in a terminal that only exists as a typed command. It is a proper tool now, so it just works.
+- Say "open my pages", "show me my garden", or "Open Uncapped". Typing /uncapped-pages works too.
+
 ## 0.5.1
 - **"Open Uncapped" now opens your pages in your browser**, which is what it should have done in 0.5.0. Before this it opened the old panel instead, so the pages were hard to find.
 - You can also say "open my pages", or "show me my garden".
