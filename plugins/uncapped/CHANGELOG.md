@@ -1,5 +1,9 @@
 # What's new in Uncapped
 
+## 0.5.1
+- **"Open Uncapped" now opens your pages in your browser**, which is what it should have done in 0.5.0. Before this it opened the old panel instead, so the pages were hard to find.
+- You can also say "open my pages", or "show me my garden".
+
 ## 0.5.0
 - **Your work now has its own pages, in your own browser.** Say "Open my pages" and Uncapped grows a small website from everything you have built — your Discover answers, your Portfolio Garden, your offer, your ten people, your Substack — and opens it in your browser. It is yours, on your computer, and it works with no internet.
 - **Everything is in one place and easy to read.** The colours mean what they always did: yellow is your next move, pink needs a decision, blue means Claude is working, green means done. Each page says what you can ask for, in the exact words to say.

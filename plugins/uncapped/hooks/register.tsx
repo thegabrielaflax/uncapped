@@ -76,6 +76,10 @@ const pendingPostRuns = []
 let cardsRunning = false
 let opResultCount = 1
 let DRAW = null // the drawing context of the panel being drawn now, for helpers that aren't handed it
+// 0.5.1 ships ONLY the fix that makes "Open Uncapped" open the browser.
+// The panel replacement is written and sits behind this flag until its tests
+// are honest again. One word, both ways.
+const PANEL_LEGACY = true
 let FONTS = {}
 // Preview builds only: Claude Code's theme setting, read at each draw (dark mode probe, 11 Nov).
 let THEME_PROBE = ''
@@ -7451,10 +7455,56 @@ function WsRender($, c) {
   return [...Header($, hc), ...StepBar($, c, cur), <E.Box key="ws-content" flexDirection="column" gap={S.section}>{[...content, footer]}</E.Box>, Footer(c)].filter(Boolean)
 }
 
+// What the panel is now: a door to the pages, and a line on where you are.
+// Everything you build is read on the pages, in your own browser. The work
+// itself happens in the chat. This panel used to hold all of it and could not
+// be made to look the way the pages do: its buttons take no colour and it has
+// no stylesheet. So it stopped trying.
+function PagesPane($, c) {
+  const { E, work, ui } = c
+  const name = String(work?.profile?.name || '').trim()
+  const stage = wsStage(work)
+  const p = discoverProgress(work)
+  const where = stage === 1
+    ? (p.done ? `Discover: ${p.done} of ${p.total} themes saved.` : 'Nothing saved yet. Discover comes first.')
+    : stage === 2 ? 'Your garden has grown. An offer comes next.'
+      : stage === 3 ? 'Your offer is chosen. First 10 Customers comes next.'
+        : stage === 4 ? 'Your list is built. Your Substack comes next.'
+          : 'Everything is built. Keep testing.'
+  const saved = ui?.savedAt ? `Saved ${ui.savedAt}` : ''
+  const says = String(ui?.error || ui?.update?.text || ui?.notice || '').trim()
+  // The one thing this panel is better at than a page: saying, live, that
+  // Claude is working. A page is a file and cannot tell you that.
+  const op = ui?.op && ui.op.state === 'running' ? ui.op : null
+  const working = op ? `Claude is working: ${op.label || op.name || 'your plan'}. This can take a few minutes.` : ''
+  return [
+    working ? U2.Panel(E, 'pp-working', 'working', [U2.Body(E, 'pp-working-t', working)]) : null,
+    says ? U2.Panel(E, 'pp-says', ui?.error ? 'decide' : 'done', [
+      U2.Body(E, 'pp-says-t', says),
+    ]) : null,
+    U2.Col(E, 'pp-head', [
+      U2.H2(E, 'pp-h', name ? `Hello, ${name}` : 'Uncapped'),
+      U2.Body(E, 'pp-b', 'Everything you have built opens as pages in your browser.'),
+    ], S.tight),
+    U2.NextCard(E, 'pp-card', {
+      label: 'Your pages',
+      title: 'Open my pages',
+      body: where,
+      actions: [Btn(E, 'pp-open', 'Open my pages', () => showPages($), true)],
+    }),
+    U2.Meta(E, 'pp-chat', 'The questions and the work happen here in the chat. Your pages show what is saved and the exact words to say next.'),
+    saved ? U2.Meta(E, 'pp-saved', saved) : null,
+    U2.Meta(E, 'pp-where', 'Not opening? Your pages are in your Uncapped folder, under my-work, then pages.'),
+  ].filter(Boolean)
+}
+
 function render($, c) {
   const { ui, work, nav } = c
   if (ui.ws !== 'ready' || nav.view === 'setup') return [...Header($, c), ...SetupView($, c)]
   if (!work) return [T(c.E, 'Loading your work...')]
+  // 0.6.0: the panel is a door to the pages. The old screens are kept below,
+  // unreached, so this is one line to put back if it turns out to be wrong.
+  if (!PANEL_LEGACY) return PagesPane($, c)
   c.places = new Set()
   DRAW = c
   if (isWorkshop(work)) return WsRender($, c)
@@ -8014,9 +8064,9 @@ When they say "I need help" or "I'm stuck": ask, briefly and warmly, whether the
 function openedNote(work) {
   const fresh = !(discoverProgress(work).done > 0)
   const step = fresh
-    ? 'They haven\'t started yet: the next step is the "Start Discover" card in the panel. Its button is "Start Discover in the chat", or they can simply say "start" here.'
-    : 'Point them to the yellow "Your next move" card in the panel.'
-  return `The Uncapped panel has just opened beside this chat, because they sent "Open Uncapped". Reply with one or two short, warm sentences and nothing else: say the panel is open beside the chat and name the next step. ${step} Don't call any tools, and don't start Discover or ask a question until they say so.`
+    ? 'They have not started yet: tell them to say "Start Discover" here in the chat.'
+    : 'Name the next step on their pages, and say the words to say for it.'
+  return `Their Uncapped pages have just opened in their browser, because they sent "Open Uncapped". Reply with one or two short, warm sentences and nothing else: say their pages are open in their browser, and name the next step. ${step} If the pages did not open, give them the file path and say to open it in their browser. Don't call any tools, and don't start Discover or ask a question until they say so.`
 }
 
 async function isCustomerWorkspace($) {
@@ -8178,7 +8228,8 @@ export const register: Register = (on) => {
     $root = $.plugin.root
     // A failure here is shown in the panel, never a blank panel.
     try { await boot($) } catch (err) { await update($, uiA, (u) => ({ ...INITIAL_UI, ...(u || {}), ws: 'error', bootError: String(err?.message || err).slice(0, 300) })) }
-    void $.ui.open({ id: PANE, title: 'Uncapped', backgroundColor: C.cream, columns: 120 })
+    // No panel on its own any more. Uncapped is its pages, and they open when
+    // asked for, not every time a chat starts.
     try { await $.agent.register({ name: 'researcher', description: 'Researches one Uncapped portfolio-garden direction from public sources. Started by the Uncapped panel only.', prompt: researchSystem(SAVE_RESEARCH), tools: ['WebSearch', 'WebFetch', SAVE_RESEARCH], model: 'sonnet', effort: 'medium', maxTurns: 16 }) } catch (err) {}
     try { await $.agent.register({ name: 'post-researcher', description: "Finds cultural moments and real pieces to read for an Uncapped customer's Substack posts. Started by the Uncapped panel only.", prompt: postResearchSystem(), tools: ['WebSearch', 'WebFetch'], model: 'sonnet', effort: 'medium', maxTurns: 60 }) } catch (err) {}
     // The planting stop-motion: one frame a second, only while the garden grows.
@@ -8743,8 +8794,8 @@ export const register: Register = (on) => {
 
   on('command.run', { command: 'uncapped' }, async ($) => {
     if (!(await read($, workA))) await boot($)
-    await $.ui.open({ id: PANE, title: 'Uncapped', backgroundColor: C.cream, focus: true, columns: 120 })
-    return {}
+    const r = await showPages($)
+    return { text: r.text }
   })
 
   on('command.run', { command: 'uncapped-pages' }, async ($) => {
@@ -8797,9 +8848,8 @@ export const register: Register = (on) => {
   on('prompt.submit', async ($, e, next) => {
     if (!/^\s*(open\s+)?uncapped\s*[.!]?\s*$/i.test(String(e.text || '')) || !(await isCustomerWorkspace($))) return next(e)
     if (!(await read($, workA))) await boot($)
-    await $.ui.open({ id: PANE, title: 'Uncapped', backgroundColor: C.cream, focus: true, columns: 120 })
-    try { await $.ui.scroll({ to: { key: 'ws-start' }, in: PANE, block: 'nearest' }) } catch (err) {}
-    return next({ ...e, context: [...(e.context ?? []), openedNote((await read($, workA)) || {})] })
+    const opened = await showPages($)
+    return next({ ...e, context: [...(e.context ?? []), openedNote((await read($, workA)) || {}), opened.text] })
   }).catch(passOn)
 
   // The research agent is the panel's own: the chat model isn't offered it.
@@ -8814,8 +8864,8 @@ export const register: Register = (on) => {
       <Box flexDirection="row" flexWrap="wrap" gap={1} alignItems="center">
         <Text weight="bold" color={C.blue}>Uncapped</Text>
         {isWorkshop(work) ? null : <Text color={C.taupeInk}>{bandSummary(work)}</Text>}
-        <Button key="band-open" label="Open Uncapped" variant="primary" onPress={later(() => $.ui.open({ id: PANE, title: 'Uncapped', backgroundColor: C.cream, focus: true, columns: 120 }))} />
-        {ui.latest && isNewer(ui.latest, VERSION) ? <Button key="band-update" label={`Update to ${ui.latest}`} onPress={later(async () => { await go($, { view: 'settings' }); await $.ui.open({ id: PANE, title: 'Uncapped', backgroundColor: C.cream, focus: true, columns: 120 }); await checkForUpdates($) })} /> : null}
+        <Button key="band-open" label="Open my pages" variant="primary" onPress={later(() => showPages($))} />
+        {ui.latest && isNewer(ui.latest, VERSION) ? <Button key="band-update" label={`Update to ${ui.latest}`} onPress={later(async () => { await $.ui.open({ id: PANE, title: 'Uncapped', backgroundColor: C.cream, focus: true, columns: 120 }); await checkForUpdates($) })} /> : null}
       </Box>
     )
   }).catch(passOn)
