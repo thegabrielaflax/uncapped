@@ -60,7 +60,7 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
       ${firstThing ? `<p class="empty-first"><span class="label">First</span> ${esc(firstThing)}</p>` : ''}
       ${primary ? `<div class="bigwrap">
         ${sayChip(primary, { big: true })}
-        <p class="bignote">Say that to Claude in the chat, and the questions are asked and answered there. Your answers are saved as you give them, and this page fills in.</p>
+        <p class="bignote">Click it to copy, then paste it into the chat with Claude. The questions are asked and answered there, your answers are saved as you give them, and this page fills in.</p>
       </div>` : ''}
       ${link ? `<a class="link" href="${link[1]}">${esc(link[0])} &rarr;</a>` : ''}
     </div>
@@ -100,7 +100,7 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
     if (!xs.length) return ''
     return `<div class="actions"><p class="label">${esc(label)}</p>
       <div class="say-row">${xs.map((t) => sayChip(t)).join('')}</div>
-      <p class="meta">Say any of these to Claude in the chat. The page fills in with what comes back.</p></div>`
+      <p class="meta">Click one to copy it, then paste it into the chat. The page fills in with what comes back.</p></div>`
   }
 
   const chainStep = (bg, ink, glyph, label, lines) => {
@@ -488,11 +488,11 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
           <blockquote id="m-${p.slot}">${esc(p.message)}</blockquote>
           <button class="copy" data-local="copies the message" data-copy="m-${p.slot}">Copy this message</button></div>` : ''}
         ${has(p.followUp) ? `<details><summary>If they don't reply</summary><blockquote>${esc(p.followUp)}</blockquote></details>` : ''}
-        <div class="say"><p class="label">When something happens, say so in the chat</p>
+        <div class="say"><p class="label">When something happens, click it and paste it in the chat</p>
           <div class="say-row">${(() => { const nm = who.split(',')[0].replace(/^(The|Your|A|An) /, (m) => m.toLowerCase())
             return [`I messaged ${nm}`, `${nm.charAt(0).toUpperCase() + nm.slice(1)} replied`, `I talked to ${nm}`, `${nm.charAt(0).toUpperCase() + nm.slice(1)} said not now`] })()
             .map((t) => sayChip(t)).join('')}</div>
-          <p class="meta">Say whichever just happened, in the chat. This page shows the new status next time you open it.</p></div>
+          <p class="meta">Click whichever just happened to copy it, then paste it into the chat. This page shows the new status next time you open it.</p></div>
       </div>`
     }
     const guide = sales.callGuide || {}
@@ -682,7 +682,7 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
         <p class="empty-why">This is the version you are running. If there is a newer one, Claude will tell you and offer to install it.</p>
         <div class="bigwrap">
           ${sayChip('Check for a new version of Uncapped', { big: true })}
-          <p class="bignote">Say that to Claude in the chat. If there is a newer version, Claude backs your work up first, then installs it. Start a new chat afterwards to use it.</p>
+          <p class="bignote">Click it to copy, then paste it into the chat. If there is a newer version, Claude backs your work up first, then installs it. Start a new chat afterwards to use it.</p>
         </div>
       </div>
       ${cardA(T.lensFor, 'Your work', `<p class="lede">Everything you build is saved in your own folder, on your computer. Claude backs it up before any update, and you can ask for a backup whenever you like.</p>
@@ -947,7 +947,11 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
   .say-chip{display:inline-block;font:inherit;font-size:14px;font-weight:600;background:var(--surface);
     border:1px solid var(--line);border-left:4px solid var(--butter);border-radius:0 11px 11px 0;
     padding:9px 15px 9px 13px;margin:0 8px 8px 0;color:var(--head);max-width:min(62ch,100%);
-    vertical-align:middle;cursor:text;user-select:all}
+    vertical-align:middle;cursor:pointer;user-select:all;
+    transition:transform .2s var(--ease),box-shadow .2s var(--ease),border-color .2s var(--ease)}
+  .say-chip:hover{transform:translateY(-1px);border-color:var(--butter);
+    box-shadow:0 8px 18px -12px rgba(31,24,21,.5)}
+  .say-chip.done{background:var(--v-doneBg);border-left-color:var(--v-doneBorder)}
   .say-chip::before{content:"“";color:var(--meta);margin-right:5px;font-size:1.15em;line-height:0}
   .say-chip::after{content:"”";color:var(--meta);margin-left:4px;font-size:1.15em;line-height:0}
   .say-chip.big{font-family:Cormorant,Georgia,serif;font-weight:600;font-size:26px;letter-spacing:-.01em;
@@ -1180,11 +1184,41 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
       btn.textContent = word; btn.classList.add('done');
       setTimeout(function () { btn.textContent = old; btn.classList.remove('done'); }, 1600);
     }
+    function copyText(text, onDone, onFail) {
+      var done = false;
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+        document.body.appendChild(ta);
+        ta.select();
+        ta.setSelectionRange(0, text.length);
+        done = document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch (e) { done = false; }
+      if (done) { onDone(); return; }
+      // a secure context may still have the modern one; a file does not
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(onDone, onFail);
+      } else { onFail(); }
+    }
+
     document.querySelectorAll('.copy').forEach(function (b) {
       b.addEventListener('click', function () {
         var el = document.getElementById(b.dataset.copy);
         if (!el) return;
-        navigator.clipboard.writeText(el.textContent.trim()).then(function () { flash(b, 'Copied'); });
+        copyText(el.textContent.trim(), function () { flash(b, 'Copied'); }, function () { flash(b, 'Select it and copy'); });
+      });
+    });
+
+    // Every phrase is a button now: one click puts the words on the clipboard,
+    // they paste it into the chat. No server can exist behind these pages, so
+    // copy is the only press that can honestly do something.
+    document.querySelectorAll('.say-chip').forEach(function (c) {
+      c.addEventListener('click', function () {
+        var text = c.dataset.say || c.textContent.replace(/[\u201c\u201d]/g, '').trim();
+        copyText(text, function () { flash(c, 'Copied \u2014 paste it in the chat'); }, function () { flash(c, 'Select it and copy'); });
       });
     });
     // light or dark, chosen right here and remembered

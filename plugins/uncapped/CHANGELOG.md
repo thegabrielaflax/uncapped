@@ -1,5 +1,10 @@
 # What's new in Uncapped
 
+## 0.6.0
+- **The panel is gone.** Uncapped is its pages now. The panel beside the chat is one line saying where you are and one button, **Open my pages**. Everything you build is read in your browser; the questions and the work happen in the chat.
+- **Every phrase on a page is a button again.** Click one and the words are on your clipboard; paste them into the chat. No more typing them out.
+- Nothing opens a panel at you any more. A new chat starts clean, and "Open Uncapped" opens your browser.
+
 ## 0.5.2
 - **"Open my pages" works now.** It was failing with "command not found": Claude was being told to run something in a terminal that only exists as a typed command. It is a proper tool now, so it just works.
 - Say "open my pages", "show me my garden", or "Open Uncapped". Typing /uncapped-pages works too.

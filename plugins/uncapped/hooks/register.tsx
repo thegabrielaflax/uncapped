@@ -76,10 +76,12 @@ const pendingPostRuns = []
 let cardsRunning = false
 let opResultCount = 1
 let DRAW = null // the drawing context of the panel being drawn now, for helpers that aren't handed it
-// 0.5.1 ships ONLY the fix that makes "Open Uncapped" open the browser.
-// The panel replacement is written and sits behind this flag until its tests
-// are honest again. One word, both ways.
-const PANEL_LEGACY = true
+// The panel as it was before 0.6.0 is still in this file, screen for screen.
+// Customers see the pages door instead; this is off for them and on for the
+// tests that cover those old screens (UNCAPPED_LEGACY_PANEL=1), so the code
+// that is still here is still held to work. Delete both once the pages have
+// carried a few weeks.
+let PANEL_LEGACY = false
 let FONTS = {}
 // Preview builds only: Claude Code's theme setting, read at each draw (dark mode probe, 11 Nov).
 let THEME_PROBE = ''
@@ -120,6 +122,8 @@ async function boot($) {
     theme = t === 'dark' ? 'dark' : 'light'
   } catch (e) {}
   applyTheme(theme)
+
+  try { PANEL_LEGACY = (await $.env.get('UNCAPPED_LEGACY_PANEL')) === '1' } catch (e) { PANEL_LEGACY = false }
 
   const ws = await detectWorkspace($)
   await update($, uiA, (u) => ({ ...INITIAL_UI, ...(u || {}), ws: ws.state, cwd: ws.cwd, version: VERSION, busy: null, op: null, opNote: null, theme, themeSet }))
