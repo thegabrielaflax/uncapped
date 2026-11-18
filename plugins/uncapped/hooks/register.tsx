@@ -22,6 +22,8 @@ import {
   spacesOf, spaceOf, offersIn, substackFor, activateSpace, placeOffers, newSpace,
 } from './lib/model.js'
 import { detectWorkspace, createWorkspace, loadWork, saveWork, backupNow, writeKitFile } from './lib/store.js'
+import { openUrl, revealPath, copyText as osCopy, fileAppName } from './lib/platform.js'
+import { openPages } from './lib/pages.js'
 import {
   DISCOVER_QUESTIONS, questionFor, BUILDERS, BY_ID, earlyReadPrompt, sharpenPrompt, builderPrompt, revisePrompt, numbersPrompt, directionPrompt, researchPrompt, researchSystem,
   feedbackPrompt, followUpPrompt, parseJson, checkShape, toMarkdown, demandText, callGuidePrompt, briefPrompt,
@@ -4278,7 +4280,7 @@ async function openEmailDraft($) {
   let savedAs = fb.savedAs
   try { savedAs = await saveFeedbackFile($, fb) } catch (e) {}
   try {
-    const r = await $.process.run(['/usr/bin/open', mailtoUrl(fb, savedAs)], { timeoutMs: 15000 })
+    const r = { exitCode: (await openUrl($, mailtoUrl(fb, savedAs))) ? 0 : 1 }
     if (r.exitCode === 0) {
       await setFeedback($, { status: 'opened', savedAs })
       await mark($, 'Opened a feedback email draft')
@@ -4297,7 +4299,7 @@ async function openEmailDraft($) {
 async function copyText($, text, done) {
   let ok = false
   try { ok = Boolean((await $.ui.copy({ text: String(text), surface: 'desktop' }))?.isCopied) } catch (e) {}
-  if (!ok) { try { ok = (await $.process.run(['/usr/bin/pbcopy'], { stdin: String(text), timeoutMs: 10000 })).exitCode === 0 } catch (e) {} }
+  if (!ok) ok = await osCopy($, text)
   await setUi($, { notice: ok ? done : "Couldn't copy automatically. Select the text and copy it." })
 }
 
@@ -4308,7 +4310,7 @@ async function copyReport($, surface) {
   const text = `To: ${FEEDBACK_TO}\nSubject: ${subjectFor(fb)}\n\n${reportText(fb)}`
   let ok = false
   try { ok = (await $.ui.copy({ text, surface: surface || 'desktop' })).isCopied } catch (e) {}
-  if (!ok) { try { ok = (await $.process.run(['/usr/bin/pbcopy'], { stdin: text, timeoutMs: 10000 })).exitCode === 0 } catch (e) {} }
+  if (!ok) ok = await osCopy($, text)
   await setFeedback($, { status: ok ? 'copied' : 'copy_failed' })
 }
 
@@ -8060,13 +8062,39 @@ async function supportReport($) {
   await setUi($, { support: `Saved as ${path}. Send it to Pivot School with a note on what you were doing.`, supportPath: path, supportText: lines.join('\n') })
   return path
 }
+// Grows the pages from the saved work and opens them in the customer's browser.
+// Says plainly where they are, so a browser that opens behind Claude, or does
+// not open at all, leaves nobody stuck.
+async function showPages($) {
+  const work = await read($, workA)
+  const u = await read($, uiA)
+  const cwd = String(u?.cwd || '')
+  if (!work) {
+    const text = 'There is nothing to show yet. Say "Start Discover" and your pages grow from your answers.'
+    await setUi($, { notice: text })
+    return { text }
+  }
+  try {
+    const { opened, path } = await openPages($, work, cwd)
+    const text = opened
+      ? `Your Uncapped pages are open in your browser. If you cannot see them, look behind this window. They are saved at ${path}.`
+      : `Your pages are ready at ${path}. Open that file in your browser.`
+    await setUi($, { notice: opened ? 'Your pages are open in your browser.' : `Your pages are at ${path}.` })
+    return { text, path }
+  } catch (e) {
+    const text = `Could not grow your pages (${String(e?.message || e)}). Your work is untouched.`
+    await setUi($, { error: text })
+    return { text }
+  }
+}
+
 // The support report, as an email draft to Gabriela in their own email app. Nothing is sent until they press Send.
 async function emailSupport($) {
   const u = await read($, uiA)
   const body = `${u.supportText || ''}\n\nWhat I was doing when it went wrong:\n\n`
   const url = `mailto:${FEEDBACK_TO}?subject=${encodeURIComponent('Uncapped support report')}&body=${encodeURIComponent(body)}`
   try {
-    const r = await $.process.run(['/usr/bin/open', url], { timeoutMs: 15000 })
+    const r = { exitCode: (await openUrl($, url)) ? 0 : 1 }
     await setUi($, { notice: r.exitCode === 0 ? 'Your email draft is open. Add a line on what you were doing, then press Send. Nothing is sent until you do.' : `Couldn't open your email app. Email ${FEEDBACK_TO} and attach the report from your Uncapped folder (my-work, then support).` })
   } catch (e) {
     await setUi($, { notice: `Couldn't open your email app. Email ${FEEDBACK_TO} and attach the report from your Uncapped folder (my-work, then support).` })
@@ -8077,10 +8105,9 @@ async function revealSupport($) {
   const u = await read($, uiA)
   const abs = `${String(u.cwd || '').replace(/\/+$/, '')}/${u.supportPath || 'my-work/support'}`
   try {
-    const r = await $.process.run(['/usr/bin/open', '-R', abs], { timeoutMs: 15000 })
-    if (r.exitCode !== 0) throw new Error(r.stderr || 'open failed')
+    if (!(await revealPath($, abs))) throw new Error('could not show the file')
   } catch (e) {
-    await setUi($, { notice: 'Open your Uncapped folder, then my-work, then support: the report is the newest file there.' })
+    await setUi($, { notice: `Open your Uncapped folder in ${await fileAppName($)}, then my-work, then support: the report is the newest file there.` })
   }
 }
 
@@ -8199,6 +8226,7 @@ export const register: Register = (on) => {
     try {
       await $.command.register({ name: 'uncapped', description: 'Open your Uncapped workspace', immediate: true })
       await $.command.register({ name: 'uncapped-update', description: 'Check for a newer version of Uncapped from Pivot School' })
+      await $.command.register({ name: 'uncapped-pages', description: 'Open your Uncapped pages in your browser' })
     } catch (err) {}
     // Is a newer Uncapped ready? Looked up in the background, never holding up the start.
     void Promise.resolve().then(() => noteLatest($)).catch(() => {})
@@ -8717,6 +8745,11 @@ export const register: Register = (on) => {
     if (!(await read($, workA))) await boot($)
     await $.ui.open({ id: PANE, title: 'Uncapped', backgroundColor: C.cream, focus: true, columns: 120 })
     return {}
+  })
+
+  on('command.run', { command: 'uncapped-pages' }, async ($) => {
+    const r = await showPages($)
+    return { text: r.text }
   })
 
   on('command.run', { command: 'uncapped-update' }, async ($) => {

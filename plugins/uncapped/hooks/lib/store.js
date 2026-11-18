@@ -10,6 +10,7 @@
 // Plugin updates replace the plugin's own folder and never this one.
 
 import { FILES, SCHEMA, freshWork, migrate, now } from './model.js'
+import { writePages } from './pages.js'
 
 export async function readJson($, path) {
   const text = await $.fs.read(path)
@@ -134,6 +135,12 @@ export async function saveWork($, work) {
     }
   }
   await writeAtomic($, FILES.work, text)
+  // The pages are grown from this file, so they are rewritten whenever it
+  // changes. A refresh in the browser is then always current, and nobody has
+  // to be told to go and do anything. A failure here never fails a save.
+  try {
+    await writePages($, work)
+  } catch (e) {}
 }
 
 export async function backupNow($, reason) {
