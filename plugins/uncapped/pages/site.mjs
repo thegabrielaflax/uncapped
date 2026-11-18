@@ -279,7 +279,7 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
        ${sect('Your path')}
        <div class="path">${steps}</div>
        ${actions('What you can ask for here', [
-         offer ? 'Change this offer' : 'Help me choose my offer',
+         offer ? `Change my offer: ${txt(offer.name)}` : 'Help me choose my offer',
          'Report what happened with a test', 'Show me my tests',
          'What should I do next?'])}`)
   }
@@ -323,13 +323,14 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
          const sum = work.profile?.summaries?.[k]
          return `<div class="card theme accented" style="--c:${[T.lensFor, T.lensWith, T.lensTeach, T.lensPublish, T.lensPackage][i % 5]}"><p class="label">${esc(label)}</p>
            ${has(sum) ? `<p class="theme-sum">${esc(sum)}</p>` : ''}
-           <details><summary>Read what you said</summary>${text.split('\n\n').filter(Boolean).map((para) => `<p>${esc(para)}</p>`).join('')}</details></div>`
+           <details><summary>Read what you said</summary>${text.split('\n\n').filter(Boolean).map((para) => `<p>${esc(para)}</p>`).join('')}</details>
+           <div class="ask">${sayChip(`I want to change my Discover answer about ${label.toLowerCase()}`)}</div></div>`
        }).join('')}</div>
        ${g && has(g.strengths) ? `${sect('What stands out')}<div class="grid">
          ${Object.entries(g.strengths).map(([k, v]) => Array.isArray(v) && v.length ? card(k === 'demand' ? 'People have paid for' : k, list(v)) : '').join('')}</div>` : ''}
        ${g && has(g.mainTest) ? card('The main thing to find out', `<p class="lede">${esc(g.mainTest)}</p>`, 'accent') : ''}
        ${actions('What you can ask for here', [
-         'I want to change one of my Discover answers', 'Add something new to Discover',
+         'Add something new to Discover',
          'Ask me the questions I have not answered',
          g ? 'Grow my garden again from my answers' : 'Grow my garden now'])}`)
   }
@@ -373,7 +374,8 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
           ${facts([['Who buys it', d.buyer], ['The problem', d.problem], ['Why now', d.whyNow], ['What they get', d.handover],
             ['Price', has(d.priceLow) ? `$${d.priceLow} to $${d.priceHigh} ${d.priceUnit || ''}` : ''], ['Why that price', d.priceWhy],
             ['Hours a job', d.deliveryHours], ['First step', d.firstStep]])}
-          ${d.nextTest ? card('Next test', `<p>${esc(d.nextTest.learn || d.nextTest.label)}</p>`, 'accent') : ''}</div></section>`
+          ${d.nextTest ? card('Next test', `<p>${esc(d.nextTest.learn || d.nextTest.label)}</p>`, 'accent') : ''}
+          <div class="ask">${sayChip(`Tell me more about ${txt(d.title)}`)}${sayChip(`Research this direction for me: ${txt(d.title)}`)}</div></div></section>`
     }
     return page('garden.html', 'Portfolio Garden',
       hero({ title: `${who}'s Portfolio Garden`, through: g.throughLine, read: g.read,
@@ -391,8 +393,7 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
          ${has(g.leftAside) ? card('Set aside for now', list(g.leftAside, (u) => esc(u.text || u))) : ''}</div>
        ${actions('What you can ask for here', [
          'I have my own idea to add to the garden', 'Something is missing from my garden',
-         'Tell me more about direction 1', 'I want to work on a different idea',
-         'Research one of these ideas for me'])}`)
+         'I want to work on a different idea'])}`)
   }
 
   function offerPage() {
@@ -435,8 +436,9 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
         </div>
         ${has(offer.firstStep) ? card('First step', `<p class="lede">${esc(offer.firstStep)}</p>`, 'accent') : ''}
         ${actions('What you can ask for here', [
-          'Change this offer', 'Change the price', 'I want to choose a different idea instead',
-          'Keep this offer and move on', 'Plan a test for this offer'])}`
+          `Change my offer: ${txt(offer.name)}`, `Change the price of my offer: ${txt(offer.name)}`,
+          'I want to choose a different idea instead',
+          `Keep my offer and move on: ${txt(offer.name)}`, `Plan a test for my offer: ${txt(offer.name)}`])}`
       })()}
        ${has(offer.toTest) ? card('What this still has to prove', `<p class="lede">${esc(offer.toTest)}</p>`, 'accent') : ''}
        ${sect('Where it came from')}
@@ -475,6 +477,10 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
     const STOPS = ['Not contacted', 'Messaged', 'Replied', 'Talked']
     const person = (p) => {
       const who = p.name || p.label || 'Someone you know'
+      // What they will SAY about this person. 'Someone you know' is fine as a
+      // heading but useless in a phrase: with no names saved, all ten would say
+      // the same words and the chat could not tell them apart.
+      const sayWho = p.name || p.label || `number ${p.slot} on my list`
       const stop = contactStop(p)
       return `
       <div class="card person accented" data-batch="${slug(p.batch || '')}" style="--c:${BATCH_C[Math.max(0, batches.indexOf(p.batch)) % 4]}">
@@ -489,13 +495,16 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
           <button class="copy" data-local="copies the message" data-copy="m-${p.slot}">Copy this message</button></div>` : ''}
         ${has(p.followUp) ? `<details><summary>If they don't reply</summary><blockquote>${esc(p.followUp)}</blockquote></details>` : ''}
         <div class="say"><p class="label">When something happens, click it and paste it in the chat</p>
-          <div class="say-row">${(() => { const nm = who.split(',')[0].replace(/^(The|Your|A|An) /, (m) => m.toLowerCase())
-            return [`I messaged ${nm}`, `${nm.charAt(0).toUpperCase() + nm.slice(1)} replied`, `I talked to ${nm}`, `${nm.charAt(0).toUpperCase() + nm.slice(1)} said not now`] })()
+          <div class="say-row">${(() => { const nm = sayWho.split(',')[0].replace(/^(The|Your|A|An) /, (m) => m.toLowerCase())
+            return [`I messaged ${nm}`, `${nm.charAt(0).toUpperCase() + nm.slice(1)} replied`, `I talked to ${nm}`, `${nm.charAt(0).toUpperCase() + nm.slice(1)} said not now`,
+              has(p.message) ? `Rewrite the message for ${nm}` : `Write the message for ${nm}`] })()
             .map((t) => sayChip(t)).join('')}</div>
           <p class="meta">Click whichever just happened to copy it, then paste it into the chat. This page shows the new status next time you open it.</p></div>
       </div>`
     }
     const guide = sales.callGuide || {}
+    // A person can have a First 10 list for each offer, so each phrase says which
+    const f10Whose = txt(offer?.name) || 'my offer'
     return page('first10.html', 'First 10 Customers',
       hero({ eyebrow: 'Step 3 of 4 · Sell it', title: 'First 10 Customers',
         through: sales.buyer?.description || sales.buyer, read: typeof sales.summary === 'string' ? sales.summary : sales.expect,
@@ -522,9 +531,11 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
            ${chainStep(T.lensPackage, T.onLensPackage, GLYPH.tick, 'Who approves it', [sales.buyer.approves])}
          </div>` : ''}
        ${actions('What you can ask for here', [
-         'Write the messages for the rest of my list', 'Change this plan',
-         'Report back on how the conversations went', 'Write my call guide',
-         'Someone had a different outcome I want to record'])}
+         `Write the messages for the rest of my list: ${f10Whose}`,
+         `Change my First 10 plan: ${f10Whose}`,
+         `Report back on how the conversations went: ${f10Whose}`,
+         `Write my call guide: ${f10Whose}`,
+         `Someone had a different outcome I want to record: ${f10Whose}`])}
        ${has(guide.client) ? `${sect('What to ask on a call', 'Two guides: one for someone who could buy, one for someone who knows your buyers.')}
          ${guideCard('Someone who could buy', guide.client, T.lensFor, T.onLensFor, GLYPH.tag)}
          ${has(guide.knows) ? guideCard('Someone who knows your buyers', guide.knows, T.lensWith, T.onLensWith, GLYPH.voice) : ''}` : ''}`)
@@ -546,11 +557,17 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
     }
     const o = sub.overview || {}
     const w = sub.world || {}
+    // Every phrase here names the Substack it belongs to. One space, one
+    // Substack, so the offer it is written for is what tells them apart.
+    const subWhose = txt(offer?.name) || txt(sub.forOffer?.offer) || 'my offer'
     const arrTxt = (x) => arr(x).map(txt).filter(Boolean)
 
     const POST_C = { 'intro story': T.lensWith, methodology: T.lensFor, 'audience builder': T.lensTeach }
     const post = (p, i) => {
       const brief = sub.briefs?.[String(i)]
+      // a post with no headline saved yet still has its number, and must not
+      // trail a bare colon into the chat
+      const tail = txt(p.headline) ? `: ${txt(p.headline)}` : ''
       return `
       <article class="card post accented" data-post="${i}" style="--c:${POST_C[p.type] || T.lensPublish}">
         <div class="post-top">
@@ -566,9 +583,10 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
           ['Opens with', p.opensWith], ['Leads to', p.leadsTo],
           ['Next step for the reader', p.next?.wording ? `${p.next.wording}${p.next.kind ? ` (${p.next.kind})` : ''}` : p.next]])}
         ${brief
-          ? `<a class="link" href="post.html">Read the full brief &rarr;</a>`
-          : `<div class="ask">${sayChip(`Write the brief for post ${i + 1}`)}
+          ? `<a class="link" href="post-${i + 1}.html">Read the full brief &rarr;</a>`
+          : `<div class="ask">${sayChip(`Write the brief for post ${i + 1}${tail}`)}
              <span class="meta">No brief yet. Press to copy the words, paste them into the chat.</span></div>`}
+        <div class="ask">${sayChip(`Change the idea for post ${i + 1}${tail}`)}</div>
       </article>`
     }
 
@@ -627,13 +645,14 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
        </div>
 
        ${actions('What you can ask for here', [
-         'Change this Substack strategy', 'Change who I am writing for',
-         'Write the briefs for all my posts', 'Change the idea for one of these posts',
-         'Keep this strategy focused on one offer'])}
+         `Change my Substack strategy: ${subWhose}`,
+         `Change who I am writing for in my Substack: ${subWhose}`,
+         `Write the briefs for all ten posts in my Substack: ${subWhose}`,
+         `Keep my Substack focused on one offer: ${subWhose}`])}
        ${has(sub.names) ? `${sect('Names to choose from')}<div class="grid">${sub.names.map((nm) => card('', `<p class="offer-name small">${esc(nm.name)}</p><p class="meta">${esc(nm.why)}</p>`)).join('')}</div>` : ''}`)
   }
 
-  function postBrief() {
+  function postBrief(keyIn, file) {
     if (!sub || !Object.keys(sub.briefs || {}).length) {
       return page('post.html', 'A post brief',
         hero({ title: 'A post brief',
@@ -643,13 +662,19 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
           sub ? 'Each of your ten posts can have one. Ask for the first and it appears here.'
             : 'Briefs are written for the posts in your Substack strategy.',
           sub ? 'Open your Substack and press Write this brief on any post.' : 'Build your Substack strategy first.',
-          sub ? 'Write the brief for post 1' : 'Build my Substack strategy',
+          sub ? (txt(sub.pieces?.[0]?.headline)
+            ? `Write the brief for post 1: ${txt(sub.pieces[0].headline)}`
+            : 'Write the brief for post 1') : 'Build my Substack strategy',
           ['See your Substack', 'substack.html']))
     }
-    const key = Object.keys(sub.briefs || {})[0]
+    const key = (keyIn === undefined || keyIn === null) ? Object.keys(sub.briefs || {})[0] : String(keyIn)
     const b = (sub.briefs || {})[key] || {}
     const p = sub.pieces[Number(key)] || {}
-    return page('post.html', 'A post brief',
+    // Which post this is, in the words they will paste into the chat
+    const pn = Number(key) + 1
+    const phl = txt(p.headline || b.title || '')
+    const ptail = phl ? `: ${phl}` : ''
+    return page(file || 'post.html', 'A post brief',
       hero({ eyebrow: `Post ${Number(key) + 1} of ${sub.pieces.length}`, title: b.title || p.headline,
         through: b.subtitle, read: b.hook,
         stats: [[esc(p.type || '—'), 'Type'], [(b.angles || []).length, 'Angles considered'], [esc(p.series || '—'), 'Series']] }),
@@ -665,8 +690,8 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
        ${has(b.yours) ? card('What makes it sound like you', facts([['Use', b.yours.use], ['Ask yourself', b.yours.question], ['Meanwhile', b.yours.meanwhile], ['Check', b.yours.check]])) : ''}
        ${has(b.land) ? card('How it lands', facts([['The takeaway', b.land.takeaway], ['The last line', b.land.line], ['What you ask of them', b.land.next], ['Why that', b.land.why]]), 'accent') : ''}
        ${actions('What you can ask for here', [
-         'Write a fresh brief for this post', 'Change the idea for this post',
-         'Help me write this post now', 'I have published this one'])}
+         `Write a fresh brief for post ${pn}${ptail}`, `Change the idea for post ${pn}${ptail}`,
+         `Help me write post ${pn} now${ptail}`, `I have published post ${pn}${ptail}`])}
        <a class="link" href="substack.html">&larr; Back to all ten posts</a>`)
   }
 
@@ -1255,6 +1280,13 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
   const pages = { 'index.html': home(), 'discover.html': discover(), 'garden.html': garden(),
     'offer.html': offerPage(), 'first10.html': first10(), 'substack.html': substack(),
     'post.html': postBrief(), 'map.html': map(), 'updates.html': updates(), 'help.html': help() }
+
+  // Every brief gets its own page. Before this, all ten posts shared post.html,
+  // so opening post 6 showed post 1.
+  for (const k of Object.keys(sub?.briefs || {})) {
+    const file = `post-${Number(k) + 1}.html`
+    pages[file] = postBrief(k, file)
+  }
 
   // the fonts travel inside the stylesheet, because a plugin can write text and
   // not bytes, and a page opened from a file has nowhere else to fetch them from

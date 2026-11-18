@@ -3,6 +3,6 @@
   "description": "Uncapped by Pivot School",
   "owner": { "name": "Pivot School" },
   "plugins": [
-    { "name": "uncapped", "version": "0.6.0", "description": "A portfolio career builder.", "source": { "source": "archive", "url": "https://thegabrielaflax.github.io/uncapped/uncapped-0.6.0.zip", "sha256": "fdf8e36b1b87381ddd7053432afc7de8f64f0e913d7d66f14605ac789d29859f" } }
+    { "name": "uncapped", "version": "0.6.1", "description": "A portfolio career builder.", "source": { "source": "archive", "url": "https://thegabrielaflax.github.io/uncapped/uncapped-0.6.1.zip", "sha256": "4f829c7bf9fb202d69b68753e03bb568c374217ab87037c98287847750254c62" } }
   ]
 }
