@@ -4532,6 +4532,53 @@ function directionNamed(work, q) {
     || ds.find((d) => names(d).some((t) => n(t).includes(k) || k.includes(n(t))))
     || null
 }
+// Which idea in their garden those words mean, as a list, so an answer that
+// could be two ideas is asked about instead of guessed at. Tried in order:
+// its key, its exact name, a name that runs into it, a name inside it, and
+// last the title of a direction, which means the offer that direction leads
+// with. 19 Nov: choosing matched directions only, so "Quarterly ad check-in"
+// saved the direction's first offer - a different offer, a different buyer and
+// a different price - and the idea they actually pointed at was thrown away.
+function ideaMatches(work, q) {
+  const n = (x) => String(x || '').trim().toLowerCase().replace(/[.,:;\s]+$/, '')
+  const k = n(q)
+  const ideas = gardenIdeas(work)
+  if (!k || !ideas.length) return []
+  const byKey = ideas.filter((i) => ideaKey(i) === String(q).trim())
+  if (byKey.length) return byKey
+  const exact = ideas.filter((i) => n(i.name) === k)
+  if (exact.length) return exact
+  const edge = ideas.filter((i) => n(i.name) && (n(i.name).startsWith(k) || k.startsWith(n(i.name))))
+  if (edge.length) return edge
+  const loose = ideas.filter((i) => n(i.name) && (n(i.name).includes(k) || k.includes(n(i.name))))
+  if (loose.length) return loose
+  const d = directionNamed(work, q)
+  return d ? ideas.filter((i) => i.d.id === d.id && i.grow == null) : []
+}
+// Every idea they could choose, under the direction it grew from, so a question
+// about which one can be asked in the words their own pages use.
+function ideaMenu(work) {
+  const ideas = gardenIdeas(work)
+  return (work.discover?.early?.directions || []).map((d) => {
+    const mine = ideas.filter((i) => i.d.id === d.id)
+    return mine.length ? `in "${d.title}": ${mine.map((i) => `"${i.name}"`).join('; ')}` : ''
+  }).filter(Boolean).join('. ')
+}
+// An idea's price as the garden writes it ("$1,500 to $2,500 a sprint"), read
+// back into the numbers an offer keeps. One number means one price.
+function priceFromText(s) {
+  const t = String(s || '').trim()
+  const m = t.match(/\$?\s*([\d][\d,]*)(?:\s*(?:to|-|–|—)\s*\$?\s*([\d][\d,]*))?\s*(.*)$/)
+  if (!m) return null
+  const num = (x) => Number(String(x).replace(/,/g, ''))
+  const low = num(m[1])
+  if (!Number.isFinite(low) || !low) return null
+  const high = m[2] ? num(m[2]) : low
+  return { low, high, unit: String(m[3] || '').trim().replace(/^[,.\s]+/, '') }
+}
+// null and "never set" mean the same idea: the one a direction leads with.
+const sameGrow = (a, b) => (a === undefined ? null : a) === (b === undefined ? null : b)
+
 // A space, by name or id, or null.
 function spaceNamed(work, q) {
   const n = (x) => String(x || '').trim().toLowerCase()
@@ -8274,7 +8321,7 @@ export const register: Register = (on) => {
       { name: 'build_plan', description: `Builds and saves the person's First 10 Customers plan (builder "first10") or Substack strategy (builder "substack") for their working offer, from answers they gave you in this chat, and shows it in the Uncapped panel. First 10 Customers takes about two minutes. A Substack strategy is written in the panel in about 12 minutes (research into their field, ten posts, research for each post, then every card written and checked) and appears there complete; nothing is shown before. Before building a Substack strategy, follow the plan skill's story and perspective step and save what they tell you with save_writing_material. Ask the plan's questions first, one per message, skipping any already saved (get_work shows builders.sales.answers and builders.substack.answers). First 10 Customers asks: ${planQuestions('sales')}. Substack asks: ${planQuestions('substack')}. Pass their answers in their own words, keyed by those ids. For Substack, voice is the short voice profile you reflected back, as they corrected it; examples are up to three public Substacks you opened and read with them in this chat ({name, url, study: what's worth studying in it for them, angle: where they could take a different angle}), never a guessed link. fresh=true makes a new version when the answers are unchanged. offer: for First 10 Customers, the offer it's for (its name), when it isn't the one they're on now. space: for Substack, the space it's for (its name, from get_work's spaces), when it isn't the space of the offer they're on now. Each space has its own Substack strategy and its own answers: building one never changes another.`, inputSchema: { type: 'object', properties: { builder: { type: 'string', enum: ['first10', 'substack'] }, offer: { type: 'string' }, space: { type: 'string' }, answers: { type: 'object', additionalProperties: { type: 'string' } }, examples: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, url: { type: 'string' }, study: { type: 'string' }, angle: { type: 'string' } } } }, fresh: { type: 'boolean' } }, required: ['builder', 'answers'] } },
       { name: 'save_first_message', description: "Saves the first message the person will send to one person on their First 10 Customers list, once you've drafted it with them and they're happy with the words. person: the name, initials or label on their list; or slot: the person's number on the list. message: the whole message, exactly as they'll send it. name: if that person is only described on their list (\"the first client who asked about pricing\") and they've told you who it is, their name or initials, so the panel shows it from now on. offer: the offer whose list this person is on, when it isn't the one they're on now. Use it for a follow-up or any later message to someone on their list too: earlier messages stay on that person's record, marked sent or not. It's shown on that person's record in the panel, ready to copy. Returns 'Saved: ...' with how many first messages are written, or what to ask.", inputSchema: { type: 'object', properties: { person: { type: 'string' }, slot: { type: 'number' }, offer: { type: 'string' }, message: { type: 'string' }, name: { type: 'string' } }, required: ['message'] } },
       { name: 'add_idea', description: "Adds the person's own idea to their portfolio garden as a possibility to test, marked as theirs, without regrowing anything else. Shape it with them first. name: a recognizable offer in a line. lens: do it for them | do it with them | teach them how | publish or package it. buyer: who might buy it. how: one sentence on how it would work. price: a rough price to test, said as a hypothesis, or empty. direction: the id of the existing direction it belongs to (from get_work), or empty for a new area, then area: 2 to 4 words naming the kind of work. Returns 'Added: ...'.", inputSchema: { type: 'object', properties: { name: { type: 'string' }, lens: { type: 'string', enum: ['do it for them', 'do it with them', 'teach them how', 'package it', 'publish it', 'publish or package it'] }, buyer: { type: 'string' }, how: { type: 'string' }, price: { type: 'string' }, direction: { type: 'string' }, area: { type: 'string' } }, required: ['name', 'lens'] } },
-      { name: 'choose_offer', description: "Makes one idea from the person's portfolio garden the offer they're working on, so their First 10 Customers plan and their Substack can be built from it. This is how an offer gets chosen: talk it through with them first (who it's for, the problem it solves, a price worth testing), then call it. idea: the idea, by the title their garden shows or its id. Anything they changed while you talked it through goes in too (name, buyer, problem, price_low, price_high, price_unit, what_they_get, why_now, first_step); anything you leave out keeps what the garden idea already says. Use it again to switch to a different idea later. Returns 'Saved: ...', or which ideas it could have meant.", inputSchema: { type: 'object', properties: { idea: { type: 'string' }, name: { type: 'string' }, buyer: { type: 'string' }, problem: { type: 'string' }, why_now: { type: 'string' }, what_they_get: { type: 'string' }, price_low: { type: 'number' }, price_high: { type: 'number' }, price_unit: { type: 'string' }, first_step: { type: 'string' } }, required: ['idea'] } },
+      { name: 'choose_offer', description: "Makes one idea from the person's portfolio garden the offer they're working on, so their First 10 Customers plan and their Substack can be built from it. This is how an offer gets chosen: talk it through with them first (who it's for, the problem it solves, a price worth testing), then call it. idea: which idea, by the name their garden shows on it (every idea in every direction has one, and its page carries the words for it). Who it is for, the problem, the price and the first step all come from that idea, so name the idea they pointed at, not the direction it sits in. Anything they changed while you talked it through goes in too (name, buyer, problem, price_low, price_high, price_unit, what_they_get, why_now, first_step); anything you leave out keeps what the garden idea already says. Use it again to switch to a different idea later. Returns 'Saved: ...', or which ideas it could have meant.", inputSchema: { type: 'object', properties: { idea: { type: 'string' }, name: { type: 'string' }, buyer: { type: 'string' }, problem: { type: 'string' }, why_now: { type: 'string' }, what_they_get: { type: 'string' }, price_low: { type: 'number' }, price_high: { type: 'number' }, price_unit: { type: 'string' }, first_step: { type: 'string' } }, required: ['idea'] } },
       { name: 'change_offer', description: "Changes the offer the person is already working on, once you've agreed the change with them: its name, who it's for, the problem, the price, what they get, why now, or the first step. Pass only what changes. The old version is kept and anything built on that offer is marked for review, so they never lose what they had. To work on a different idea from their garden instead, use choose_offer. offer: which offer, when it isn't the one they're on now. Returns 'Saved: ...' with what changed.", inputSchema: { type: 'object', properties: { name: { type: 'string' }, buyer: { type: 'string' }, problem: { type: 'string' }, why_now: { type: 'string' }, what_they_get: { type: 'string' }, price_low: { type: 'number' }, price_high: { type: 'number' }, price_unit: { type: 'string' }, price_why: { type: 'string' }, first_step: { type: 'string' }, offer: { type: 'string' } } } },
       { name: 'record_outreach', description: "Records what happened with one person on the person's First 10 Customers list, so their list keeps up with real life. person: their name, initials or the label on the list; or slot: their number on it. what: messaged (they sent it), replied (that person answered), talked (the conversation happened) or said_no (a no, or not now). said: what that person actually said, in their words, if they have it. learned: what they took from it. offer: whose list, when it isn't the offer they're on now. Returns 'Saved: ...'.", inputSchema: { type: 'object', properties: { person: { type: 'string' }, slot: { type: 'number' }, what: { type: 'string', enum: ['messaged', 'replied', 'talked', 'said_no'] }, said: { type: 'string' }, learned: { type: 'string' }, offer: { type: 'string' } }, required: ['what'] } },
       { name: 'back_up_my_work', description: "Takes a copy of everything the person has saved in Uncapped, into a dated folder inside their own my-work/backups. Use it when they ask to back up their work, or before anything they are nervous about. Returns where the copy was put.", inputSchema: { type: 'object', properties: {} } },
@@ -8544,15 +8591,29 @@ export const register: Register = (on) => {
     const w = await read($, workA)
     const dirs = w.discover?.early?.directions || []
     if (!dirs.length) return { result: "There's no portfolio garden yet, so there's nothing to choose from. Discover comes first, and build_directions grows the garden from their answers." }
-    const d = directionNamed(w, e.idea)
-    if (!d) return { result: `Needs clarification: which idea from their garden? ${dirs.map((x) => `"${x.title}"`).join('; ')}` }
+    const found = ideaMatches(w, e.idea)
+    if (!found.length) return { result: `Needs clarification: which idea from their garden? Every direction holds several, and each one is its own offer: ${ideaMenu(w)}. Ask them which, in the words on their page.` }
+    if (found.length > 1) return { result: `Needs clarification: those words could mean ${found.map((x) => `"${x.name}"`).join(' or ')}. Ask them which one, then call choose_offer with the whole name.` }
+    const i = found[0]
+    const d = i.d
     const str = (v, fb) => (v === undefined || v === null || String(v).trim() === '' ? (fb ?? '') : String(v).trim())
     const num = (v, fb) => (v === undefined || v === null || v === '' ? (fb ?? '') : Number(String(v).replace(/[^0-9.]/g, '')) || '')
+    // The idea they chose is what the offer is made of. A direction's own first
+    // offer keeps the direction's numbers; a related idea carries its own price
+    // as words ("$400 to $700 a quarter"), so read those numbers back out.
+    const own = i.grow != null
+    const p = own ? priceFromText(i.price) : null
     const next = {
-      name: str(e.name, d.title), buyer: str(e.buyer, d.buyer), problem: str(e.problem, d.problem),
-      whyNow: str(e.why_now, d.whyNow), handover: str(e.what_they_get, d.handover),
-      priceLow: num(e.price_low, d.priceLow), priceHigh: num(e.price_high, d.priceHigh),
-      priceUnit: str(e.price_unit, d.priceUnit), priceWhy: str(d.priceWhy), firstStep: str(e.first_step, d.firstStep),
+      name: str(e.name, i.name || d.title),
+      buyer: str(e.buyer, i.buyer || d.buyer),
+      problem: str(e.problem, (own && (i.trigger || i.why)) || d.problem),
+      whyNow: str(e.why_now, (own && i.trigger) || d.whyNow),
+      handover: str(e.what_they_get, (own && i.receives) || d.handover),
+      priceLow: num(e.price_low, p ? p.low : d.priceLow),
+      priceHigh: num(e.price_high, p ? p.high : d.priceHigh),
+      priceUnit: str(e.price_unit, p ? p.unit : d.priceUnit),
+      priceWhy: str(d.priceWhy),
+      firstStep: str(e.first_step, (own && i.test) || d.firstStep),
     }
     await mutate($, (w2) => {
       // An offer remembers the garden it was chosen from. Without that, an
@@ -8560,11 +8621,14 @@ export const register: Register = (on) => {
       // title, which is to say the moment they reword it while choosing it.
       const at = w2.discover?.early?.at
       // An idea kept earlier as a possible income stream already has a record;
-      // choosing it promotes that one rather than making a second offer.
-      let o = (w2.offers || []).find((x) => x.fromDirection === d.id)
-      if (o) Object.assign(o, next, { status: 'confirmed', provisional: true, fromGarden: at })
+      // choosing it promotes that one rather than making a second offer. It has
+      // to be the same IDEA, not just the same direction: matching on the
+      // direction alone overwrote the offer they chose last time whenever they
+      // moved to another idea beside it, and took its plans down with it.
+      let o = (w2.offers || []).find((x) => x.fromDirection === d.id && sameGrow(x.fromGrow, i.grow))
+      if (o) Object.assign(o, next, { status: 'confirmed', provisional: true, fromGarden: at, fromGrow: i.grow ?? null })
       else {
-        o = { id: `o${(w2.offers || []).length + 1}`, rev: 1, status: 'confirmed', provisional: true, createdAt: now(), history: [], fromDirection: d.id, fromGarden: at, ...next }
+        o = { id: `o${(w2.offers || []).length + 1}`, rev: 1, status: 'confirmed', provisional: true, createdAt: now(), history: [], fromDirection: d.id, fromGrow: i.grow ?? null, fromGarden: at, ...next }
         w2.offers.push(o)
       }
       w2.discover.chosenId = d.id
@@ -8574,7 +8638,8 @@ export const register: Register = (on) => {
     }, ['discover'])
     const o = activeOffer(await read($, workA))
     const price = o && String(o.priceLow ?? '') !== '' ? `, at ${priceText(o)}` : ''
-    return { result: `Saved: "${o?.name || next.name}" is the offer they're working on now${price}. Their offer page is filled in and First 10 Customers is the next step. Tell them to refresh Uncapped in their browser to see it. If anything about it is still rough, change_offer changes it; nothing is fixed.` }
+    const from = i.name && String(next.name).trim() !== String(i.name).trim() ? ` It is "${i.name}" from their garden, reworded.` : ''
+    return { result: `Saved: "${o?.name || next.name}" is the offer they're working on now${price}.${from} Their offer page is filled in and First 10 Customers is the next step. Tell them to refresh Uncapped in their browser to see it. If anything about it is still rough, change_offer changes it; nothing is fixed.` }
   }).catch(() => ({ result: "Couldn't choose that offer just now. Nothing was changed." }))
 
   on('tool.call', { tool: 'mcp__uncapped__change_offer' }, async ($, e) => {

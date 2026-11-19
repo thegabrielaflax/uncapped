@@ -1,5 +1,12 @@
 # What's new in Uncapped
 
+## 0.6.3
+- **Every idea in your garden is now its own idea.** Press one and you see that idea: who buys it, what makes them act, what they get, what it would take, a price worth testing and how to test it. Before this, pressing an idea opened the direction it grew from, and a direction describes only the offer it leads with — a different name, a different buyer, a different price. So you were looking at the wrong thing. Thank you to Cory and Jen, who reported it.
+- **Each idea carries the words that make it your offer.** "Start with this offer" now sits on the idea itself, so the one you point at is the one you get, and its buyer, its problem, its price and its first step come with it.
+- **Your garden shows which idea you chose**, and your offer page links straight back to it.
+- **Choosing a different idea no longer overwrites the offer you had.** Both are kept. The one you are working on is the one you chose last.
+- The install notes still said a panel would open beside the chat. There is no panel: your work opens as pages in your own browser, and the chat is where the questions and the work happen.
+
 ## 0.6.0
 - **The panel is gone.** Uncapped is its pages now. The panel beside the chat is one line saying where you are and one button, **Open my pages**. Everything you build is read in your browser; the questions and the work happen in the chat.
 - **Every phrase on a page is a button again.** Click one and the words are on your clipboard; paste them into the chat. No more typing them out.

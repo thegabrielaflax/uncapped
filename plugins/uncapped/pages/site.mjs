@@ -42,7 +42,12 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
   const g = work.discover?.early || null
   const sales = work.builders?.sales?.output || null
   const sub = work.builders?.substack?.output || null
-  const offer = (work.offers || [])[0] || null
+  // The offer they are working on is the one they chose, which is the one the
+  // work marks active. 19 Nov: the pages took offers[0] instead, so switching
+  // to another idea left every page showing the offer before it, and an idea
+  // only kept as a possible income stream (status "idea") could show as theirs.
+  const realOffers = (work.offers || []).filter((o) => o && o.status !== 'idea')
+  const offer = realOffers.find((o) => o.id === work.activeOfferId) || realOffers[0] || null
   const named = Boolean(txt(work.profile?.name))
   const EMAIL = 'gabriela@gabrielaflaxcoaching.com'
   // Nobody has to tell Uncapped their name, so every page has to read well
@@ -198,6 +203,18 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
   const arr = (x) => (Array.isArray(x) ? x : has(x) ? [x] : [])
   const list = (xs, f = (x) => esc(x)) => `<ul class="plain">${arr(xs).filter(has).map((x) => `<li>${f(x)}</li>`).join('')}</ul>`
   const sect = (t, note) => `<h2 class="section">${esc(t)}</h2>${note ? `<p class="section-note">${esc(note)}</p>` : ''}`
+  // Two labels over one sentence reads as a mistake, and a garden written
+  // before ideas had their own fields answers more than one question with the
+  // same words. Keep the first label it earned and drop the repeat.
+  const onceEach = (rows) => {
+    const seen = new Set()
+    return rows.filter(([, v]) => {
+      const k = txt(v).trim().toLowerCase()
+      if (!k || seen.has(k)) return false
+      seen.add(k)
+      return true
+    })
+  }
 
   // ---------------------------------------------------------------- pages
   // How far a person has got, from what is actually saved. Catherine has messaged
@@ -211,7 +228,43 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
     return 0
   }
 
-  const ideas = (g?.directions || []).flatMap((d, di) => (d.growInto || []).map((it, ii) => ({ ...it, dir: di, stage: d.stage, id: `i${di}-${ii}` })))
+  const priceRange = (d) => (has(d.priceLow)
+    ? `$${d.priceLow}${has(d.priceHigh) && String(d.priceHigh) !== String(d.priceLow) ? ` to $${d.priceHigh}` : ''}${d.priceUnit ? ` ${d.priceUnit}` : ''}`
+    : txt(d.priceNote))
+
+  // Every idea in the garden, in the same order and with the same keys as the
+  // plugin's gardenIdeas(), so the pages and the chat always mean the same
+  // idea by the same name. 19 Nov: this listed only growInto, so a direction's
+  // own first offer - the one whose price and buyer the direction shows - had
+  // no tile at all, and the page said eight ideas where the garden had eleven.
+  const normName = (x) => String(x || '').trim().toLowerCase()
+  const ideas = (g?.directions || []).flatMap((d, di) => {
+    const grow = d.growInto || []
+    // A related idea that repeats the first offer is the same offer: once, with
+    // the fuller wording, exactly as gardenIdeas() treats it.
+    const dupAt = grow.findIndex((x) => normName(x.name) && normName(x.name) === normName(d.firstOffer || d.title))
+    const dup = dupAt >= 0 ? grow[dupAt] : null
+    const first = {
+      key: d.id, dir: di, grow: null, stage: d.stage, own: Boolean(d.own),
+      name: d.firstOffer || d.title, lens: d.lens || d.route, family: d.family || '',
+      buyer: d.buyer || '', trigger: d.whyNow || '', why: d.whyNow || '',
+      receives: (dup && dup.receives) || d.handover || '', credible: d.whyYou || '',
+      how: d.summary || (dup && dup.how) || '', price: priceRange(d) || (dup && dup.price) || '',
+      hours: d.deliveryHours || '', size: d.size || '', test: d.testIt || '',
+      needs: d.needs || '', proof: d.proof || '',
+    }
+    const rest = grow
+      .map((x, ii) => ({ ...x, key: `${d.id}-grow-${ii}`, dir: di, grow: ii, stage: d.stage }))
+      .filter((_, ii) => ii !== dupAt)
+    return [first, ...rest]
+  })
+
+  // Which idea in the garden the offer they are working on came from, so a page
+  // can name it and link straight to it instead of to its direction.
+  const sameGrow = (a, b) => (a === undefined ? null : a) === (b === undefined ? null : b)
+  const offerIdea = offer && g
+    ? ideas.find((x) => (g.directions[x.dir] || {}).id === offer.fromDirection && sameGrow(x.grow, offer.fromGrow)) || null
+    : null
 
   function home() {
     if (!started) {
@@ -359,14 +412,39 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
     }
     const tile = (it) => {
       const l = lensOf(it.lens)
-      return `<button class="tile" data-local="opens the direction this idea grew from" data-lens="${slug(it.lens)}" data-dir="${it.dir}" style="--c:${l.bg};--ci:${l.ink}">
+      return `<button class="tile" data-local="opens this idea, inside the direction it grew from" data-lens="${slug(it.lens)}" data-dir="${it.dir}" data-idea="${esc(it.key)}" style="--c:${l.bg};--ci:${l.ink}">
         <span class="tile-top"><span class="ico">${ico(l.icon, l.ink)}</span><span class="lens">${esc(l.short)}</span>
         ${it.price ? `<span class="price">${esc(it.price)}</span>` : ''}</span>
         <span class="tile-name">${esc(it.name)}</span><span class="tile-buyer">${esc(it.buyer)}</span>
-        <span class="tile-how">${esc(it.how)}</span><span class="tile-go">See where it grows &rarr;</span></button>`
+        <span class="tile-how">${esc(it.how)}</span><span class="tile-go">See this idea &rarr;</span></button>`
+    }
+    // An idea, inside the direction it grew from, with everything the garden
+    // knows about it and the words that choose it. Before 19 November an idea
+    // was a tile and nothing else: pressing one opened its direction, which
+    // describes a different offer at a different price, so every press showed
+    // the wrong thing and no idea was named anywhere on the page but its tile.
+    const ideaRow = (it) => {
+      const l = lensOf(it.lens)
+      const isYours = Boolean(offer) && offer.fromDirection === (g.directions[it.dir] || {}).id
+        && (offer.fromGrow === undefined ? null : offer.fromGrow) === (it.grow === undefined ? null : it.grow)
+      return `<div class="idea${isYours ? ' yours' : ''}" id="idea-${esc(it.key)}">
+        <button class="idea-head" data-local="opens and closes this idea" aria-expanded="false" aria-controls="ib-${esc(it.key)}">
+          <span class="ico" style="background:${l.bg}">${ico(l.icon, l.ink)}</span>
+          <span class="idea-head-text">
+            <span class="idea-name">${esc(it.name)}</span>
+            <span class="idea-meta">${esc(l.short)}${it.price ? ` <span class="dot">&middot;</span> ${esc(it.price)}` : ''}${it.hours ? ` <span class="dot">&middot;</span> ${esc(it.hours)}` : ''}</span></span>
+          ${isYours ? `<span class="pill" style="background:${l.bg};color:${l.ink}">The one you chose</span>` : ''}
+          <span class="chev"></span></button>
+        <div class="idea-body" id="ib-${esc(it.key)}" hidden>
+          ${facts(onceEach([['Who buys it', it.buyer], ['What makes them act', it.trigger], ['Why they would pay', it.why],
+            ['What they get', it.receives], ['How it works', it.how], ['Price to test', it.price],
+            ['Hours it takes', it.hours], ['How much of your week', it.size], ['Why you can do it', it.credible],
+            ['What you would need first', it.needs], ['How to test it', it.test], ['Still a guess', it.proof]]))}
+          <div class="ask">${sayChip(`Start with this offer: ${txt(it.name)}`)}</div></div></div>`
     }
     const dir = (d, i) => {
       const l = lensOf(d.route)
+      const mineHere = ideas.filter((x) => x.dir === i)
       return `<section class="dir" id="dir-${i}" style="--c:${l.bg};--ci:${l.ink}">
         <button class="dir-head" data-local="opens and closes this direction" aria-expanded="false" aria-controls="db-${i}">
           <span class="dir-num">${i + 1}</span>
@@ -379,11 +457,14 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
           <p class="lede">${esc(d.opportunity)}</p>
           <div class="two">${card('Why you', `<p>${esc(d.whyYou)}</p>`)}
             ${d.take ? card('My read', `<p><strong>${esc(d.take.appeal)}</strong> ${esc(d.take.limitation)}</p><p class="meta">Based on ${esc(d.take.basis)}.</p>`) : ''}</div>
-          ${facts([['Who buys it', d.buyer], ['The problem', d.problem], ['Why now', d.whyNow], ['What they get', d.handover],
-            ['Price', has(d.priceLow) ? `$${d.priceLow} to $${d.priceHigh} ${d.priceUnit || ''}` : ''], ['Why that price', d.priceWhy],
+          ${facts([['The first offer to test', d.firstOffer], ['Who buys it', d.buyer], ['The problem', d.problem], ['Why now', d.whyNow], ['What they get', d.handover],
+            ['Price', priceRange(d)], ['Why that price', d.priceWhy],
             ['Hours a job', d.deliveryHours], ['First step', d.firstStep]])}
           ${d.nextTest ? card('Next test', `<p>${esc(d.nextTest.learn || d.nextTest.label)}</p>`, 'accent') : ''}
-          <div class="ask">${sayChip(`Start with this offer: ${txt(d.title)}`)}${sayChip(`Tell me more about ${txt(d.title)}`)}${sayChip(`Research this direction for me: ${txt(d.title)}`)}</div></div></section>`
+          <h3 class="sub">${mineHere.length === 1 ? 'The idea in this direction' : `The ${mineHere.length} ideas in this direction`}</h3>
+          <p class="section-note">Open one to see who buys it, what it costs them and how to test it. Each one carries the words that make it your offer.</p>
+          <div class="ideas">${mineHere.map(ideaRow).join('')}</div>
+          <div class="ask">${sayChip(`Tell me more about ${txt(d.title)}`)}${sayChip(`Research this direction for me: ${txt(d.title)}`)}</div></div></section>`
     }
     return page('garden.html', 'Portfolio Garden',
       hero({ title: `${mine} Portfolio Garden`, through: g.throughLine, read: g.read,
@@ -450,7 +531,7 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
       })()}
        ${has(offer.toTest) ? card('What this still has to prove', `<p class="lede">${esc(offer.toTest)}</p>`, 'accent') : ''}
        ${sect('Where it came from')}
-       ${card('', `<p>Grown from direction <strong>${esc(g.directions.find((d) => d.id === offer.fromDirection)?.title || offer.fromDirection || '')}</strong> in your Portfolio Garden.</p><a class="link" href="garden.html">Open the garden &rarr;</a>`)}`)
+       ${card('', `<p>Grown from ${offerIdea ? `<strong>${esc(offerIdea.name)}</strong>, an idea in the direction ` : 'the direction '}<strong>${esc(g.directions.find((d) => d.id === offer.fromDirection)?.title || offer.fromDirection || '')}</strong> in your Portfolio Garden.</p><a class="link" href="garden.html${offerIdea ? `?idea=${encodeURIComponent(offerIdea.key)}` : ''}">${offerIdea ? 'Open that idea' : 'Open the garden'} &rarr;</a>`)}`)
   }
 
   const guideCard = (title, gd, accent, ink, glyph) => `<div class="guide" style="--c:${accent};--ci:${ink}">
@@ -950,6 +1031,21 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
     border-bottom:2px solid var(--meta);transform:rotate(45deg);transition:transform .3s var(--ease)}
   .dir-head[aria-expanded="true"] .chev{transform:rotate(225deg)}
   .dir-body{padding:0 30px 24px}
+  /* the ideas inside a direction: one row each, opened in place */
+  .sub{font-family:Cormorant,Georgia,serif;font-weight:600;font-size:21px;color:var(--head);margin:26px 0 4px;letter-spacing:-.01em}
+  .ideas{display:flex;flex-direction:column;gap:8px}
+  .idea{background:var(--inset);border:1px solid var(--line);border-radius:14px;overflow:hidden;scroll-margin-top:94px}
+  .idea.yours{border-color:var(--accent)}
+  .idea-head{all:unset;box-sizing:border-box;cursor:pointer;display:flex;gap:12px;align-items:center;
+    width:100%;padding:14px 16px;transition:background .25s var(--ease)}
+  .idea-head:hover{background:var(--surface)}
+  .idea-head-text{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}
+  .idea-name{font-size:15.5px;font-weight:650;line-height:1.3;color:var(--head)}
+  .idea-meta{font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--meta)}
+  .idea-head .chev{margin-top:0}
+  .idea-head[aria-expanded="true"] .chev{transform:rotate(225deg)}
+  .idea-body{padding:2px 16px 16px}
+  .idea-body .facts{margin-bottom:12px}
   .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
   .two .card{margin-bottom:14px}
   /* people + posts */
@@ -1152,6 +1248,44 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
 
   const js = `
   (function () {
+    // Bring an opened idea into view with its own name first, clear of the bars
+    // pinned to the top of the window. Their height is only knowable once they
+    // are actually stuck and the fonts have settled - measured any earlier, the
+    // name ends up hidden behind them - so jump, then measure, then correct.
+    function pinnedBottom() {
+      var bottom = 0;
+      var bars = document.querySelectorAll('.freshbar, .bar');
+      for (var i = 0; i < bars.length; i++) {
+        var how = getComputedStyle(bars[i]).position;
+        if (how !== 'sticky' && how !== 'fixed') continue;
+        var r = bars[i].getBoundingClientRect();
+        if (r.top <= 1 && r.bottom > bottom) bottom = r.bottom;
+      }
+      return bottom;
+    }
+    function showIdea(idea) {
+      var head = idea.querySelector('.idea-head') || idea;
+      // Only ever nudge DOWN a name the bars are covering, and only while it is
+      // still close by: the browser does its own jump to a #idea- link after
+      // this runs, and a late correction must never yank a page the reader has
+      // since scrolled somewhere else.
+      function settle() {
+        var off = pinnedBottom() + 12 - head.getBoundingClientRect().top;
+        if (off > 2 && off < 400) window.scrollBy(0, -off);
+      }
+      idea.scrollIntoView({ block: 'start' });
+      settle();
+      // again as the fonts land and the bars find their real height, and once
+      // more after load, which is when the browser does its own jump to a
+      // #idea- link and undoes everything done before it
+      setTimeout(settle, 150);
+      setTimeout(settle, 450);
+      if (document.readyState !== 'complete') {
+        window.addEventListener('load', function () { settle(); setTimeout(settle, 120); });
+      } else {
+        setTimeout(settle, 900);
+      }
+    }
     var tiles = [].slice.call(document.querySelectorAll('.tile'));
     var count = document.getElementById('count');
     if (tiles.length) {
@@ -1168,12 +1302,20 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
           apply();
         });
       });
+      // Pressing an idea opens THAT idea, in the direction it grew from. It
+      // used to scroll to the direction and stop, and a direction describes a
+      // different offer, so the answer on screen was never the idea pressed.
       tiles.forEach(function (t) {
         t.addEventListener('click', function () {
-          var head = document.querySelector('#dir-' + t.dataset.dir + ' .dir-head');
-          if (!head) return;
-          if (head.getAttribute('aria-expanded') !== 'true') head.click();
-          document.getElementById('dir-' + t.dataset.dir).scrollIntoView({ behavior: 'smooth', block: 'center' });
+          var sec = document.getElementById('dir-' + t.dataset.dir);
+          if (!sec) return;
+          var head = sec.querySelector('.dir-head');
+          if (head && head.getAttribute('aria-expanded') !== 'true') head.click();
+          var idea = t.dataset.idea ? document.getElementById('idea-' + t.dataset.idea) : null;
+          if (!idea) { sec.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+          var ih = idea.querySelector('.idea-head');
+          if (ih && ih.getAttribute('aria-expanded') !== 'true') ih.click();
+          showIdea(idea);
         });
       });
       apply();
@@ -1274,14 +1416,36 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
     // Nothing is sent from these pages. Each phrase is something to say in the
     // chat, which is also where it is answered.
 
-    document.querySelectorAll('.dir-head').forEach(function (h, i) {
+    // Directions and the ideas inside them open the same way.
+    document.querySelectorAll('.dir-head, .idea-head').forEach(function (h) {
       h.addEventListener('click', function () {
         var open = h.getAttribute('aria-expanded') === 'true';
         h.setAttribute('aria-expanded', String(!open));
-        document.getElementById(h.getAttribute('aria-controls')).hidden = open;
+        var body = document.getElementById(h.getAttribute('aria-controls'));
+        if (body) body.hidden = open;
       });
-      if (i === 0) h.click();
     });
+    var firstDir = document.querySelector('.dir-head');
+    if (firstDir) firstDir.click();
+
+    // A link to one idea (offer.html sends you to the one you chose) opens that
+    // idea, not just the page it sits on. It is ?idea=, not #idea-, because a
+    // fragment makes the browser scroll there itself, after everything here has
+    // run, and it lands the idea's name underneath the bars pinned at the top.
+    var asked = location.search.match(/[?&]idea=([^&]+)/);
+    var wantKey = asked ? decodeURIComponent(asked[1])
+      : location.hash.indexOf('#idea-') === 0 ? location.hash.slice(6) : '';
+    if (wantKey) {
+      var want = document.getElementById('idea-' + wantKey);
+      if (want) {
+        var holder = want.closest('.dir');
+        var dh = holder && holder.querySelector('.dir-head');
+        if (dh && dh.getAttribute('aria-expanded') !== 'true') dh.click();
+        var wh = want.querySelector('.idea-head');
+        if (wh && wh.getAttribute('aria-expanded') !== 'true') wh.click();
+        showIdea(want);
+      }
+    }
   })();
   `
 
