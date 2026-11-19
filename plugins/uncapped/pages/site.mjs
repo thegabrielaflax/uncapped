@@ -43,10 +43,18 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
   const sales = work.builders?.sales?.output || null
   const sub = work.builders?.substack?.output || null
   const offer = (work.offers || [])[0] || null
-  const named = Boolean(work.profile?.name)
+  const named = Boolean(txt(work.profile?.name))
   const EMAIL = 'gabriela@gabrielaflaxcoaching.com'
-  const who = work.profile?.name || 'Your'
+  // Nobody has to tell Uncapped their name, so every page has to read well
+  // without one. `who` is the name and is empty when there isn't one: it can
+  // only ever be used where `named` has been checked. `mine` and `greeting`
+  // are the two places that needed it, and they both say something sensible
+  // either way. 19 Nov: `who` fell back to the word "Your", which produced
+  // "Good morning, Your." and "Your's Portfolio Garden" for a customer who
+  // had never been asked her name.
+  const who = txt(work.profile?.name)
   const mine = named ? `${who}'s` : 'Your'
+  const greeting = named ? `Good morning, ${who}.` : 'Good morning.'
   const themesAnswered = Object.keys(work.profile?.answers || {}).filter((k) => has(work.profile.answers[k])).length
   const started = themesAnswered > 0 || work.discover?.status === 'in_progress'
 
@@ -226,7 +234,7 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
     }
     if (!g) {
       return page('index.html', 'Home',
-        hero({ title: `Good morning${who && who !== 'Your' ? `, ${who}` : ''}.`,
+        hero({ title: greeting,
           through: 'Discover is under way.',
           read: 'Your answers are saved as you give them. When there are enough, Claude grows your Portfolio Garden from them, and the rest of this site fills in from there.',
           stats: [[`${themesAnswered} of 7`, 'Themes answered']] }),
@@ -255,7 +263,7 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
     }).join('')
     return page('index.html', 'Home',
       hero({
-        title: `Good morning, ${who}.`,
+        title: greeting,
         through: g.throughLine,
         read: (sub && sub.nextAction) || g.read,
         stats: [[(g.directions || []).length, 'Directions'], [ideas.length, 'Ideas'],
@@ -375,10 +383,10 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
             ['Price', has(d.priceLow) ? `$${d.priceLow} to $${d.priceHigh} ${d.priceUnit || ''}` : ''], ['Why that price', d.priceWhy],
             ['Hours a job', d.deliveryHours], ['First step', d.firstStep]])}
           ${d.nextTest ? card('Next test', `<p>${esc(d.nextTest.learn || d.nextTest.label)}</p>`, 'accent') : ''}
-          <div class="ask">${sayChip(`Tell me more about ${txt(d.title)}`)}${sayChip(`Research this direction for me: ${txt(d.title)}`)}</div></div></section>`
+          <div class="ask">${sayChip(`Start with this offer: ${txt(d.title)}`)}${sayChip(`Tell me more about ${txt(d.title)}`)}${sayChip(`Research this direction for me: ${txt(d.title)}`)}</div></div></section>`
     }
     return page('garden.html', 'Portfolio Garden',
-      hero({ title: `${who}'s Portfolio Garden`, through: g.throughLine, read: g.read,
+      hero({ title: `${mine} Portfolio Garden`, through: g.throughLine, read: g.read,
         stats: [[g.directions.length, 'Directions'], [ideas.length, 'Ideas to test'], [new Set(ideas.map((i) => i.lens)).size, 'Ways to earn'], [(g.unknowns || []).length, 'Still to find out']] }),
       `<div class="bar"><span class="bar-label">Show</span>
         <button class="filter" data-local="shows every idea again" data-f="lens" data-v="all" aria-pressed="true">Everything</button>

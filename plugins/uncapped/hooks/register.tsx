@@ -4515,6 +4515,23 @@ function offerNamed(work, q) {
   const xs = chosenOffers(work)
   return xs.find((o) => n(o.name) === k || o.id === q) || xs.find((o) => n(o.name).startsWith(k) || n(shortName(o.name)) === k) || xs.find((o) => n(o.name).includes(k) || k.includes(n(shortName(o.name)))) || null
 }
+// A direction in their garden, by the title a page shows, or its id, or null.
+// A phrase arrives in the chat as words, not as an id ("Start with this offer:
+// Teaching realistic everyday eating"), so the words have to find it. Ideas
+// that grew inside a direction match their direction too, because a customer
+// reads the tile and says that name.
+function directionNamed(work, q) {
+  const n = (x) => String(x || '').trim().toLowerCase().replace(/[.,:;\s]+$/, '')
+  const k = n(q)
+  const ds = work.discover?.early?.directions || []
+  if (!k) return null
+  const names = (d) => [d.title, d.short, d.firstOffer, ...(d.growInto || []).map((g) => g.name)].filter(Boolean)
+  return ds.find((d) => d.id === q)
+    || ds.find((d) => names(d).some((t) => n(t) === k))
+    || ds.find((d) => names(d).some((t) => n(t).startsWith(k) || k.startsWith(n(t))))
+    || ds.find((d) => names(d).some((t) => n(t).includes(k) || k.includes(n(t))))
+    || null
+}
 // A space, by name or id, or null.
 function spaceNamed(work, q) {
   const n = (x) => String(x || '').trim().toLowerCase()
@@ -8049,7 +8066,7 @@ Where things are:
 - Never tell the person to find a field or button that isn't in that list.
 
 Saving:
-- Their work is saved only through the uncapped tools: get_status, save_discover_answer, save_week, save_starting_point, build_directions, build_plan, save_writing_material, build_post_brief, change_post_idea, write_post_cards, save_first_message, add_idea, save_portfolio, get_work, list_tests, plan_test, record_findings, decide, save_research, support_report, check_for_updates, prepare_feedback, open_feedback_draft.
+- Their work is saved only through the uncapped tools: get_status, save_discover_answer, save_week, save_starting_point, build_directions, choose_offer, change_offer, build_plan, save_writing_material, build_post_brief, change_post_idea, write_post_cards, save_first_message, record_outreach, add_idea, save_portfolio, get_work, back_up_my_work, show_work_folder, list_tests, plan_test, record_findings, decide, save_research, support_report, check_for_updates, prepare_feedback, open_feedback_draft.
 
 Tests and findings:
 - Every offer is a guess to test until buyers confirm it. Packaging or launching it doesn't prove demand; never call anything "validated".
@@ -8257,6 +8274,11 @@ export const register: Register = (on) => {
       { name: 'build_plan', description: `Builds and saves the person's First 10 Customers plan (builder "first10") or Substack strategy (builder "substack") for their working offer, from answers they gave you in this chat, and shows it in the Uncapped panel. First 10 Customers takes about two minutes. A Substack strategy is written in the panel in about 12 minutes (research into their field, ten posts, research for each post, then every card written and checked) and appears there complete; nothing is shown before. Before building a Substack strategy, follow the plan skill's story and perspective step and save what they tell you with save_writing_material. Ask the plan's questions first, one per message, skipping any already saved (get_work shows builders.sales.answers and builders.substack.answers). First 10 Customers asks: ${planQuestions('sales')}. Substack asks: ${planQuestions('substack')}. Pass their answers in their own words, keyed by those ids. For Substack, voice is the short voice profile you reflected back, as they corrected it; examples are up to three public Substacks you opened and read with them in this chat ({name, url, study: what's worth studying in it for them, angle: where they could take a different angle}), never a guessed link. fresh=true makes a new version when the answers are unchanged. offer: for First 10 Customers, the offer it's for (its name), when it isn't the one they're on now. space: for Substack, the space it's for (its name, from get_work's spaces), when it isn't the space of the offer they're on now. Each space has its own Substack strategy and its own answers: building one never changes another.`, inputSchema: { type: 'object', properties: { builder: { type: 'string', enum: ['first10', 'substack'] }, offer: { type: 'string' }, space: { type: 'string' }, answers: { type: 'object', additionalProperties: { type: 'string' } }, examples: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, url: { type: 'string' }, study: { type: 'string' }, angle: { type: 'string' } } } }, fresh: { type: 'boolean' } }, required: ['builder', 'answers'] } },
       { name: 'save_first_message', description: "Saves the first message the person will send to one person on their First 10 Customers list, once you've drafted it with them and they're happy with the words. person: the name, initials or label on their list; or slot: the person's number on the list. message: the whole message, exactly as they'll send it. name: if that person is only described on their list (\"the first client who asked about pricing\") and they've told you who it is, their name or initials, so the panel shows it from now on. offer: the offer whose list this person is on, when it isn't the one they're on now. Use it for a follow-up or any later message to someone on their list too: earlier messages stay on that person's record, marked sent or not. It's shown on that person's record in the panel, ready to copy. Returns 'Saved: ...' with how many first messages are written, or what to ask.", inputSchema: { type: 'object', properties: { person: { type: 'string' }, slot: { type: 'number' }, offer: { type: 'string' }, message: { type: 'string' }, name: { type: 'string' } }, required: ['message'] } },
       { name: 'add_idea', description: "Adds the person's own idea to their portfolio garden as a possibility to test, marked as theirs, without regrowing anything else. Shape it with them first. name: a recognizable offer in a line. lens: do it for them | do it with them | teach them how | publish or package it. buyer: who might buy it. how: one sentence on how it would work. price: a rough price to test, said as a hypothesis, or empty. direction: the id of the existing direction it belongs to (from get_work), or empty for a new area, then area: 2 to 4 words naming the kind of work. Returns 'Added: ...'.", inputSchema: { type: 'object', properties: { name: { type: 'string' }, lens: { type: 'string', enum: ['do it for them', 'do it with them', 'teach them how', 'package it', 'publish it', 'publish or package it'] }, buyer: { type: 'string' }, how: { type: 'string' }, price: { type: 'string' }, direction: { type: 'string' }, area: { type: 'string' } }, required: ['name', 'lens'] } },
+      { name: 'choose_offer', description: "Makes one idea from the person's portfolio garden the offer they're working on, so their First 10 Customers plan and their Substack can be built from it. This is how an offer gets chosen: talk it through with them first (who it's for, the problem it solves, a price worth testing), then call it. idea: the idea, by the title their garden shows or its id. Anything they changed while you talked it through goes in too (name, buyer, problem, price_low, price_high, price_unit, what_they_get, why_now, first_step); anything you leave out keeps what the garden idea already says. Use it again to switch to a different idea later. Returns 'Saved: ...', or which ideas it could have meant.", inputSchema: { type: 'object', properties: { idea: { type: 'string' }, name: { type: 'string' }, buyer: { type: 'string' }, problem: { type: 'string' }, why_now: { type: 'string' }, what_they_get: { type: 'string' }, price_low: { type: 'number' }, price_high: { type: 'number' }, price_unit: { type: 'string' }, first_step: { type: 'string' } }, required: ['idea'] } },
+      { name: 'change_offer', description: "Changes the offer the person is already working on, once you've agreed the change with them: its name, who it's for, the problem, the price, what they get, why now, or the first step. Pass only what changes. The old version is kept and anything built on that offer is marked for review, so they never lose what they had. To work on a different idea from their garden instead, use choose_offer. offer: which offer, when it isn't the one they're on now. Returns 'Saved: ...' with what changed.", inputSchema: { type: 'object', properties: { name: { type: 'string' }, buyer: { type: 'string' }, problem: { type: 'string' }, why_now: { type: 'string' }, what_they_get: { type: 'string' }, price_low: { type: 'number' }, price_high: { type: 'number' }, price_unit: { type: 'string' }, price_why: { type: 'string' }, first_step: { type: 'string' }, offer: { type: 'string' } } } },
+      { name: 'record_outreach', description: "Records what happened with one person on the person's First 10 Customers list, so their list keeps up with real life. person: their name, initials or the label on the list; or slot: their number on it. what: messaged (they sent it), replied (that person answered), talked (the conversation happened) or said_no (a no, or not now). said: what that person actually said, in their words, if they have it. learned: what they took from it. offer: whose list, when it isn't the offer they're on now. Returns 'Saved: ...'.", inputSchema: { type: 'object', properties: { person: { type: 'string' }, slot: { type: 'number' }, what: { type: 'string', enum: ['messaged', 'replied', 'talked', 'said_no'] }, said: { type: 'string' }, learned: { type: 'string' }, offer: { type: 'string' } }, required: ['what'] } },
+      { name: 'back_up_my_work', description: "Takes a copy of everything the person has saved in Uncapped, into a dated folder inside their own my-work/backups. Use it when they ask to back up their work, or before anything they are nervous about. Returns where the copy was put.", inputSchema: { type: 'object', properties: {} } },
+      { name: 'show_work_folder', description: "Opens the person's my-work folder on their computer, where their saved work, their readable plans and their backups are. Use it when they ask where their work is kept. Returns what it opened, or the path to give them if it couldn't.", inputSchema: { type: 'object', properties: {} } },
       { name: 'save_portfolio', description: "Saves your read on how the offers they're focusing on work together, shown in the panel under Your portfolio: two or three sentences in Gabriela's voice saying which offer people would start with, which is for those who want more, and why the order makes sense for this person. Call it when they add a second offer, or when the fit changes. Returns 'Saved: ...'.", inputSchema: { type: 'object', properties: { story: { type: 'string' } }, required: ['story'] } },
       { name: 'build_post_brief', description: "Writes the full brief for one post in their Substack strategy and shows it in the panel: the idea and why someone would click, where to open, the story beat by beat with the material written out, what would make it sound like them, and where to land it. The panel also writes a post's brief the first time they open it. post: the post's number in their plan (1 for the first). fresh=true writes a new version of a brief they already have. Takes about a minute.", inputSchema: { type: 'object', properties: { post: { type: 'number' }, fresh: { type: 'boolean' } }, required: ['post'] } },
       { name: 'build_call_guide', description: "Writes the research call guide for the First 10 Customers plan of the offer they're on: an opener, up to four questions and a close for talking to a potential client, and the same for someone who knows their clients, shown in the panel under See what to ask. Call it when save_first_message says their first two messages are saved, or when they ask how to prepare for their calls. Takes about a minute. Returns 'Saved: ...'.", inputSchema: { type: 'object', properties: {} } },
@@ -8336,7 +8358,7 @@ export const register: Register = (on) => {
     }
     const w = await read($, workA)
     const o = activeOffer(w)
-    if (!o || o.status === 'idea') return { result: "There's no working offer yet, so there's nothing to plan for. Discover comes first, then they choose one offer in the panel's portfolio garden: \"See this offer\" on an idea, then \"Start with this offer\"." }
+    if (!o || o.status === 'idea') return { result: "There's no working offer yet, so there's nothing to plan for. Discover comes first, then one idea from their portfolio garden becomes the offer they're working on: talk it through with them and call choose_offer." }
     const qs = BY_ID[id].questions || []
     const given = Object.fromEntries(Object.entries(e.answers || {}).map(([k, v]) => [k, String(v ?? '').trim()]).filter(([k, v]) => v && qs.some((q) => q.id === k)))
     const saved = w.builders?.[id]?.answers || {}
@@ -8362,9 +8384,9 @@ export const register: Register = (on) => {
       const inSp = sp ? offersIn(w4, sp.id) : [o]
       const others = spacesOf(w4).filter((x) => !sp || x.id !== sp.id)
       const forWhat = sp && spacesOf(w4).length > 1 ? `the space "${sp.name}" (${inSp.map((x) => `"${x.name}"`).join(', ')})` : inSp.length > 1 ? `all their offers (${inSp.map((x) => `"${x.name}"`).join(', ')})` : `"${o.name}"`
-      if (st.state === 'running') return { result: `Their Substack strategy for ${forWhat} is already being written in the panel. Nothing new was started. It appears there, complete, when all ten cards are finished.` }
+      if (st.state === 'running') return { result: `Their Substack strategy for ${forWhat} is already being written. Nothing new was started. It is on their Substack page, complete, when all ten cards are finished.` }
       if (st.state !== 'started' && st.state !== 'resumed') return { result: `Nothing new was started. ${notSent() || 'Uncapped is busy with something else just now.'} Their answers are saved; they can ask you again in a few minutes.` }
-      return { result: `${st.state === 'resumed' ? 'Carrying on' : 'Started'}: the panel is now writing their Substack strategy for ${forWhat}. It researches their field, chooses ten posts with an editor's read, researches each post, then writes and checks every card: about 12 minutes${st.state === 'resumed' ? ' at most, doing only what was missing' : ''}. The panel shows its progress, and the whole strategy appears together when all ten cards are finished; nothing is shown before then. Tell them that in a sentence or two, without describing any posts: they can keep chatting here or close this chat, nothing is lost, and if it ever stops the panel shows one button, Finish my strategy.${others.length ? ` Their other space${others.length === 1 ? '' : 's'} (${others.map((x) => `"${x.name}"`).join(', ')}) keep${others.length === 1 ? 's' : ''} its own Substack, unchanged.` : ''}` }
+      return { result: `${st.state === 'resumed' ? 'Carrying on' : 'Started'}: Uncapped is now writing their Substack strategy for ${forWhat}. It researches their field, chooses ten posts with an editor's read, researches each post, then writes and checks every card: about 12 minutes${st.state === 'resumed' ? ' at most, doing only what was missing' : ''}. The whole strategy is there together when all ten cards are finished; nothing is shown before then. Tell them that in a sentence or two, without describing any posts: they can keep chatting here or close this chat, nothing is lost, and if it ever stops, write_post_cards finishes it, doing only what is missing.${others.length ? ` Their other space${others.length === 1 ? '' : 's'} (${others.map((x) => `"${x.name}"`).join(', ')}) keep${others.length === 1 ? 's' : ''} its own Substack, unchanged.` : ''}` }
     }
     const before = (await read($, workA)).builders?.[id]?.updatedAt || ''
     lastClaim = null
@@ -8423,7 +8445,7 @@ export const register: Register = (on) => {
         ? ' Their call guide is in the plan. Tell them once, in these words: "Your first two messages are ready. I\'ve also put together the questions for your calls. Open See what to ask in your plan whenever you want to prep."'
         : ' Their first two messages are saved: call build_call_guide now, then tell them once, in these words: "Your first two messages are ready. I\'ve also put together the questions for your calls. Open See what to ask in your plan whenever you want to prep."')
       : ''
-    return { result: `Saved: the first message for ${personName(hit.p, contactOf(w3.builders.sales, hit.key))}, on their record in the panel, ready to copy. First messages written: ${done} of ${batch.length}.${next ? ` Next: ${personName(next.p, contactOf(w3.builders.sales, next.key))}.` : ' That was the last of the first batch: the panel now points them to their Substack strategy.'}${guideNote}` }
+    return { result: `Saved: the first message for ${personName(hit.p, contactOf(w3.builders.sales, hit.key))}, on their record on their First 10 Customers page, ready to copy once they refresh. First messages written: ${done} of ${batch.length}.${next ? ` Next: ${personName(next.p, contactOf(w3.builders.sales, next.key))}.` : ' That was the last of the first batch: their Substack strategy is the next step.'}${guideNote}` }
   }).catch(() => ({ result: "Couldn't save the message just now. Nothing was changed." }))
 
   on('tool.call', { tool: 'mcp__uncapped__build_call_guide' }, async ($) => {
@@ -8435,7 +8457,7 @@ export const register: Register = (on) => {
     if (!out) return { result: notSent() ? `Nothing new was sent to Claude. ${notSent()}` : "Couldn't write the call guide just now. Their plan and messages are saved; they can ask again." }
     await go($, { view: 'builder', builder: 'sales', stage: 'result' })
     await setUi($, { guideOpen: true })
-    return { result: `Saved: their research call guide for "${o.name}", in the panel under See what to ask: ${out.client?.questions?.length || 0} questions for a potential client${out.knows?.questions?.length ? ` and ${out.knows.questions.length} for someone who knows their clients` : ''}.` }
+    return { result: `Saved: their research call guide for "${o.name}", on their First 10 Customers page under See what to ask: ${out.client?.questions?.length || 0} questions for a potential client${out.knows?.questions?.length ? ` and ${out.knows.questions.length} for someone who knows their clients` : ''}.` }
   }).catch(() => ({ result: "Couldn't write the call guide just now. Their plan and messages are saved." }))
 
   on('tool.call', { tool: 'mcp__uncapped__build_post_brief' }, async ($, e) => {
@@ -8448,7 +8470,7 @@ export const register: Register = (on) => {
     if (!(i >= 0 && i < pieces.length)) return { result: `Their plan has ${pieces.length} posts: ask which one (1 to ${pieces.length}).` }
     if (briefOf(plan.output, i) && !e.fresh) {
       await go($, { view: 'builder', builder: 'substack', stage: 'post', post: i })
-      return { result: `Post ${i + 1}, "${briefOf(plan.output, i).title || pieces[i].headline}", already has its full brief. It's open in the panel. Call again with fresh: true only if they want a new version.` }
+      return { result: `Post ${i + 1}, "${briefOf(plan.output, i).title || pieces[i].headline}", already has its full brief. It's on its own page. Call again with fresh: true only if they want a new version.` }
     }
     lastClaim = null
     await go($, { view: 'builder', builder: 'substack', stage: 'post', post: i })
@@ -8456,12 +8478,12 @@ export const register: Register = (on) => {
     if (!out) return { result: notSent() ? `Nothing new was sent to Claude. ${notSent()}` : "Couldn't write the brief just now. Their strategy is saved; they can open the post or ask again." }
     await go($, { view: 'builder', builder: 'substack', stage: 'post', post: i })
     const beats = (out.arc || []).length
-    return { result: `Saved: the full brief for post ${i + 1}, "${out.title}", open in the panel: the idea, where to open${(out.open?.lines || []).length ? ' (with a line they could start with)' : ''}, ${beats} beats from opening to ending, what would make it sound like them${out.yours?.question ? `, one question for them ("${out.yours.question}")` : ''}, and where to land it (${out.land?.next || 'a next step'}). Tell them in a sentence or two what the post is about and the question, if there is one; the panel has the rest.` }
+    return { result: `Saved: the full brief for post ${i + 1}, "${out.title}", on its own page: the idea, where to open${(out.open?.lines || []).length ? ' (with a line they could start with)' : ''}, ${beats} beats from opening to ending, what would make it sound like them${out.yours?.question ? `, one question for them ("${out.yours.question}")` : ''}, and where to land it (${out.land?.next || 'a next step'}). Tell them in a sentence or two what the post is about and the question, if there is one; the page has the rest.` }
   }).catch(() => ({ result: "Couldn't write the brief just now. Their strategy is saved." }))
 
   on('tool.call', { tool: 'mcp__uncapped__save_space' }, async ($, e) => {
     const w = await read($, workA)
-    if (!chosenOffers(w).length) return { result: 'There are no offers to group yet. They choose an offer in the panel first.' }
+    if (!chosenOffers(w).length) return { result: 'There are no offers to group yet. They choose an offer first, with choose_offer.' }
     const o = String(e.offer || '').trim() ? offerNamed(w, e.offer) : null
     if (String(e.offer || '').trim() && !o) return { result: `Needs clarification: which offer? ${chosenOffers(w).map((x) => `"${x.name}"`).join('; ')}` }
     const sp = String(e.space || '').trim() ? spaceNamed(w, e.space) : null
@@ -8482,7 +8504,7 @@ export const register: Register = (on) => {
       const w3 = await read($, workA)
       const toSp = spaceOf(w3, w3.offers.find((y) => y.id === o.id))
       const left = from ? offersIn(w3, from.id) : []
-      return { result: `Saved: "${o.name}" is now in "${toSp?.name}", shown in the panel under Your portfolio. Its First 10 plan stays with it.${from && !left.length && substackFor(w3, from.id)?.output ? ` The Substack strategy built for "${from.name}" stays saved.` : ''}${from && left.length ? ` "${from.name}" still holds ${left.map((y) => `"${y.name}"`).join(', ')}.` : ''}` }
+      return { result: `Saved: "${o.name}" is now in "${toSp?.name}", shown on their pages under Your portfolio once they refresh. Its First 10 plan stays with it.${from && !left.length && substackFor(w3, from.id)?.output ? ` The Substack strategy built for "${from.name}" stays saved.` : ''}${from && left.length ? ` "${from.name}" still holds ${left.map((y) => `"${y.name}"`).join(', ')}.` : ''}` }
     }
     if (sp && name) {
       await mutate($, (w2) => { const x = (w2.spaces || []).find((y) => y.id === sp.id); if (x) x.name = name.slice(0, 80) }, ['discover'])
@@ -8511,17 +8533,138 @@ export const register: Register = (on) => {
       w2.events.unshift({ at: now(), text: `Added your own idea to your garden: ${name}.` })
     }, ['discover'])
     await go($, { view: 'discover', stage: 'garden' })
-    return { result: `Added: "${name}" (${e.lens}) to their garden${into ? `, under ${into.short || into.title}` : ''}, marked as their own idea and a possibility to test. It's in the panel under Your offer, where "See this offer", then "Start with this offer", makes it their working offer.` }
+    return { result: `Added: "${name}" (${e.lens}) to their garden${into ? `, under ${into.short || into.title}` : ''}, marked as their own idea and a possibility to test. It's in their garden once they refresh Uncapped in their browser. Saying "Start with this offer" with its name makes it the offer they're working on, whenever they're ready.` }
   }).catch(() => ({ result: "Couldn't add the idea just now. Nothing was changed." }))
+
+  // Choosing the offer used to be two button presses in the panel. The panel
+  // went in 0.6.0 and nothing replaced it, so from then until now a customer
+  // could grow a garden and then go no further: there was no way, from the
+  // chat, to say which idea they were taking forward. 19 Nov.
+  on('tool.call', { tool: 'mcp__uncapped__choose_offer' }, async ($, e) => {
+    const w = await read($, workA)
+    const dirs = w.discover?.early?.directions || []
+    if (!dirs.length) return { result: "There's no portfolio garden yet, so there's nothing to choose from. Discover comes first, and build_directions grows the garden from their answers." }
+    const d = directionNamed(w, e.idea)
+    if (!d) return { result: `Needs clarification: which idea from their garden? ${dirs.map((x) => `"${x.title}"`).join('; ')}` }
+    const str = (v, fb) => (v === undefined || v === null || String(v).trim() === '' ? (fb ?? '') : String(v).trim())
+    const num = (v, fb) => (v === undefined || v === null || v === '' ? (fb ?? '') : Number(String(v).replace(/[^0-9.]/g, '')) || '')
+    const next = {
+      name: str(e.name, d.title), buyer: str(e.buyer, d.buyer), problem: str(e.problem, d.problem),
+      whyNow: str(e.why_now, d.whyNow), handover: str(e.what_they_get, d.handover),
+      priceLow: num(e.price_low, d.priceLow), priceHigh: num(e.price_high, d.priceHigh),
+      priceUnit: str(e.price_unit, d.priceUnit), priceWhy: str(d.priceWhy), firstStep: str(e.first_step, d.firstStep),
+    }
+    await mutate($, (w2) => {
+      // An offer remembers the garden it was chosen from. Without that, an
+      // offer is judged stale the moment its name stops matching a direction
+      // title, which is to say the moment they reword it while choosing it.
+      const at = w2.discover?.early?.at
+      // An idea kept earlier as a possible income stream already has a record;
+      // choosing it promotes that one rather than making a second offer.
+      let o = (w2.offers || []).find((x) => x.fromDirection === d.id)
+      if (o) Object.assign(o, next, { status: 'confirmed', provisional: true, fromGarden: at })
+      else {
+        o = { id: `o${(w2.offers || []).length + 1}`, rev: 1, status: 'confirmed', provisional: true, createdAt: now(), history: [], fromDirection: d.id, fromGarden: at, ...next }
+        w2.offers.push(o)
+      }
+      w2.discover.chosenId = d.id
+      w2.discover.status = 'done'
+      activateOffer(w2, o.id)
+      w2.events.unshift({ at: now(), text: `Chose the offer you're working on: ${o.name}.` })
+    }, ['discover'])
+    const o = activeOffer(await read($, workA))
+    const price = o && String(o.priceLow ?? '') !== '' ? `, at ${priceText(o)}` : ''
+    return { result: `Saved: "${o?.name || next.name}" is the offer they're working on now${price}. Their offer page is filled in and First 10 Customers is the next step. Tell them to refresh Uncapped in their browser to see it. If anything about it is still rough, change_offer changes it; nothing is fixed.` }
+  }).catch(() => ({ result: "Couldn't choose that offer just now. Nothing was changed." }))
+
+  on('tool.call', { tool: 'mcp__uncapped__change_offer' }, async ($, e) => {
+    const w = await read($, workA)
+    let target = workingOffer(w)
+    if (String(e.offer || '').trim()) {
+      const want = offerNamed(w, e.offer)
+      if (!want) return { result: `Needs clarification: which offer? ${chosenOffers(w).map((x) => `"${x.name}"`).join('; ')}` }
+      target = want
+    }
+    if (!target) return { result: "They haven't chosen an offer yet, so there's nothing to change. choose_offer makes one of the ideas in their garden the offer they're working on." }
+    const given = { name: e.name, buyer: e.buyer, problem: e.problem, whyNow: e.why_now, handover: e.what_they_get, priceLow: e.price_low, priceHigh: e.price_high, priceUnit: e.price_unit, priceWhy: e.price_why, firstStep: e.first_step }
+    const next = { ...target }
+    for (const [k, v] of Object.entries(given)) {
+      if (v === undefined || v === null || String(v).trim() === '') continue
+      next[k] = ['priceLow', 'priceHigh'].includes(k) ? (Number(String(v).replace(/[^0-9.]/g, '')) || '') : String(v).trim()
+    }
+    const fields = OFFER_FIELDS.filter((f) => String(target[f] ?? '') !== String(next[f] ?? ''))
+    if (!fields.length) return { result: 'Needs clarification: nothing in that is different from what their offer already says. Agree the new wording or price with them, then call change_offer with just what changes.' }
+    let flagged = []
+    await mutate($, (w2) => {
+      const o = (w2.offers || []).find((x) => x.id === target.id)
+      if (o) flagged = applyOfferChange(w2, o, next) || []
+    }, ['discover'])
+    const named = { name: 'what it is called', buyer: 'who it is for', problem: 'the problem', whyNow: 'why now', handover: 'what they get', priceLow: 'the price', priceHigh: 'the price', priceUnit: 'the price', priceWhy: 'why that price', firstStep: 'the first step' }
+    const said = [...new Set(fields.map((f) => named[f] || f))].join(', ')
+    const plans = flagged.map((id) => RESULT_NAME[id] || id)
+    return { result: `Saved: changed ${said} on "${next.name}". The version before this is kept, so nothing is lost.${plans.length ? ` Their ${plans.join(' and ')} ${plans.length === 1 ? 'is' : 'are'} marked "Review suggested", because ${plans.length === 1 ? 'it was' : 'they were'} built on the old wording.` : ''} Tell them to refresh Uncapped in their browser.` }
+  }).catch(() => ({ result: "Couldn't change the offer just now. Nothing was changed." }))
+
+  // Their First 10 page has carried "I messaged Ana", "Ana replied" and the
+  // rest since the pages were built, with nothing behind them: the record they
+  // move was only reachable from the panel. 19 Nov.
+  on('tool.call', { tool: 'mcp__uncapped__record_outreach' }, async ($, e) => {
+    if (String(e.offer || '').trim()) {
+      const w0 = await read($, workA)
+      const want = offerNamed(w0, e.offer)
+      if (!want) return { result: `Needs clarification: which offer's list? ${chosenOffers(w0).map((x) => `"${x.name}"`).join('; ')}` }
+      if (want.id !== w0.activeOfferId) await mutate($, (w2) => activateOffer(w2, want.id), ['sales'])
+    }
+    const w = await read($, workA)
+    const o = workingOffer(w)
+    const b = o ? planFor(w, 'sales', o) : null
+    if (!b) return { result: "There's no First 10 Customers plan yet, so there's no one to record anything against. build_plan builds it." }
+    const list = (b.output.list || []).map((p, i) => ({ p, i, key: keyOf(p, i), slot: slotOf(p, i) }))
+    const norm = (x) => String(x || '').trim().toLowerCase()
+    const q = norm(e.person)
+    const hit = e.slot != null
+      ? list.find((x) => Number(x.slot) === Number(e.slot))
+      : list.find((x) => [x.p.name, x.p.label, contactOf(b, x.key).found].some((n) => n && (norm(n) === q || norm(n).startsWith(q) || q.startsWith(norm(n)))))
+    if (!hit) return { result: `Needs clarification: which person on their list? ${list.map((x) => `${x.slot}. ${personName(x.p, contactOf(b, x.key))}`).join('; ')}` }
+    const patch = { messaged: { sent: 'sent' }, replied: { reply: 'replied' }, talked: { talk: 'had it' }, said_no: { reply: 'said not now' } }[String(e.what)]
+    if (!patch) return { result: 'Needs clarification: was it messaged, replied, talked or said_no?' }
+    await mutate($, (w2) => {
+      const b2 = w2.builders.sales
+      const prev = contactRecord((b2.tracker || {})[hit.key])
+      const next = { ...prev, ...patch, at: now() }
+      if (patch.sent === 'sent' && (!prev.sent || prev.sent === 'not sent yet')) next.sentAt = now()
+      if (String(e.said || '').trim()) next.response = String(e.said).trim()
+      if (String(e.learned || '').trim()) next.learned = String(e.learned).trim()
+      b2.tracker = { ...(b2.tracker || {}), [hit.key]: next }
+    }, ['sales'])
+    const w3 = await read($, workA)
+    const who = personName(hit.p, contactOf(w3.builders.sales, hit.key))
+    const said = { messaged: `${who} has been messaged`, replied: `${who} replied`, talked: `they talked to ${who}`, said_no: `${who} said not now` }[String(e.what)]
+    return { result: `Saved: ${said}. It's on that person's card on their First 10 Customers page; tell them to refresh Uncapped in their browser.${String(e.what) === 'said_no' ? ' A no is worth as much as a yes here: ask what the reason was, in their words, and whether it says anything about who the offer is for.' : ''}` }
+  }).catch(() => ({ result: "Couldn't record that just now. Nothing was changed." }))
+
+  on('tool.call', { tool: 'mcp__uncapped__back_up_my_work' }, async ($) => {
+    const where = await backupNow($, 'asked')
+    return { result: `Backed up: a copy of everything they have saved is in ${where}, inside their own folder. Nothing else changed.` }
+  }).catch(() => ({ result: "Couldn't take a backup just now. Their work is untouched." }))
+
+  on('tool.call', { tool: 'mcp__uncapped__show_work_folder' }, async ($) => {
+    const cwd = await $.session.cwd()
+    const abs = `${cwd}/my-work`
+    const shown = await revealPath($, abs).catch(() => false)
+    return { result: shown
+      ? `Opened their my-work folder. uncapped.json holds everything they have saved, kit has readable copies of each plan, backups has copies taken before updates, and pages is the site they open in their browser.`
+      : `Couldn't open it from here. Their work is at ${abs}: uncapped.json holds everything saved, kit has readable copies of each plan, backups has earlier copies, and pages is the site they open in their browser.` }
+  }).catch(() => ({ result: "Couldn't open the folder just now." }))
 
   on('tool.call', { tool: 'mcp__uncapped__save_portfolio' }, async ($, e) => {
     const story = String(e.story || '').trim()
     if (!story) return { result: 'Needs clarification: say in two or three sentences how their offers work together, then call save_portfolio again.' }
     const w = await read($, workA)
     const offers = chosenOffers(w)
-    if (offers.length < 2) return { result: `They're focusing on one offer${offers[0] ? ` ("${offers[0].name}")` : ''}, so there's no portfolio to describe yet. Once they add another offer in the panel, say how the two fit.` }
+    if (offers.length < 2) return { result: `They're focusing on one offer${offers[0] ? ` ("${offers[0].name}")` : ''}, so there's no portfolio to describe yet. Once they add another offer, say how the two fit.` }
     await mutate($, (w2) => { w2.portfolio = { story: story.slice(0, 1200), offerIds: offers.map((o) => o.id), at: now() } }, ['discover'])
-    return { result: `Saved: how their ${offers.length} offers work together (${offers.map((o) => o.name).join('; ')}), shown in the panel under Your portfolio.` }
+    return { result: `Saved: how their ${offers.length} offers work together (${offers.map((o) => o.name).join('; ')}), shown on their pages under Your portfolio once they refresh.` }
   }).catch(() => ({ result: "Couldn't save that just now. Nothing was changed." }))
 
   on('tool.call', { tool: 'mcp__uncapped__build_directions' }, async ($) => {
@@ -8532,11 +8675,11 @@ export const register: Register = (on) => {
     const out = await runEarlyRead($, 'chat')
     if (out) await go($, { view: 'discover', stage: 'garden' })
     if (!out) {
-      if (notSent()) return { result: `Nothing new was sent to Claude. ${notSent()} Tell them, and point them to the panel's Discover screen.` }
+      if (notSent()) return { result: `Nothing new was sent to Claude. ${notSent()} Tell them, and carry on with Discover here in the chat.` }
       const u = await read($, uiA)
-      return { result: `Couldn't grow the garden: ${u.op?.error || u.error || 'something went wrong'}. Their answers are saved. They can press Try again in the panel, or ask you again.` }
+      return { result: `Couldn't grow the garden: ${u.op?.error || u.error || 'something went wrong'}. Their answers are saved. They can ask you to try again.` }
     }
-    return { result: `Grown. Shown in the panel under Your offer. ${out.read}\nDirections: ${out.directions.map((d, i) => `${i + 1}. ${d.title} (${d.basis || d.stage}, ${d.monthsToFirstIncome ? `about ${d.monthsToFirstIncome} months to first income` : 'timing unknown'})`).join('; ')}. Ask them to look through their ideas in the panel under Your offer, and remind them they can keep several as income streams.` }
+    return { result: `Grown. It is on their Portfolio Garden page once they refresh Uncapped in their browser. ${out.read}\nDirections: ${out.directions.map((d, i) => `${i + 1}. ${d.title} (${d.basis || d.stage}, ${d.monthsToFirstIncome ? `about ${d.monthsToFirstIncome} months to first income` : 'timing unknown'})`).join('; ')}. Ask them to look through their ideas on their Portfolio Garden page, and remind them they can keep several as income streams.` }
   }).catch(() => ({ result: "Couldn't grow the garden just now. Their answers are saved." }))
 
   on('tool.call', { tool: 'mcp__uncapped__get_work' }, async ($, e) => {
@@ -8596,7 +8739,7 @@ export const register: Register = (on) => {
       const u = await read($, uiA)
       return { result: `Couldn't plan the test: ${u.op?.error || u.error || 'something went wrong'}. Nothing was changed.` }
     }
-    return { result: `Saved: a test called "${x.title}" (under Your test in the panel). It's for: ${x.uncertaintyText}. First: ${(x.steps || [])[0] || ''}. Review on ${x.reviewOn}. The panel has the messages, conversation guide and what to record. Tell them they can come back and say what happened in their own words, here or with Report what happened in the chat.` }
+    return { result: `Saved: a test called "${x.title}" (it is on their pages under Your test). It's for: ${x.uncertaintyText}. First: ${(x.steps || [])[0] || ''}. Review on ${x.reviewOn}. Their pages have the messages, conversation guide and what to record. Tell them they can come back and say what happened in their own words, here or with Report what happened in the chat.` }
   }).catch(() => ({ result: "Couldn't plan the test just now. Nothing was changed." }))
 
   on('tool.call', { tool: 'mcp__uncapped__record_findings' }, async ($, e) => {
@@ -8622,7 +8765,7 @@ export const register: Register = (on) => {
     const o = await organiseFindings($, f.exp.id, e.notes, e.who, 'chat')
     if (!o) {
       if (notSent()) return { result: `Nothing new was sent to Claude and nothing was saved again. ${notSent()}` }
-      return { result: `Couldn't organize those notes: ${(await read($, uiA)).op?.error || 'something went wrong'}. Nothing was saved; ask them to try again or use Report what happened in the panel.` }
+      return { result: `Couldn't organize those notes: ${(await read($, uiA)).op?.error || 'something went wrong'}. Nothing was saved; ask them to try again or say "Report what happened with a test".` }
     }
     const saved = await saveFindings($, f.exp.id, o, e.notes, e.who, 'chat')
     if (!saved) return { result: "Couldn't save the findings. Nothing was changed." }
@@ -8687,19 +8830,19 @@ export const register: Register = (on) => {
     if (nx?.runId) {
       await go($, { view: 'builder', builder: 'substack', stage: 'result' })
       const st = await finishStrategy($)
-      if (st.state === 'running') return { result: 'Their Substack strategy is being written in the panel now. It appears there, complete, when all ten cards are finished.' }
+      if (st.state === 'running') return { result: 'Their Substack strategy is being written now. It appears there, complete, when all ten cards are finished.' }
       if (st.state !== 'started') return { result: `Nothing new was started: ${(await read($, uiA)).opNote?.text || notSent() || 'Uncapped is busy just now.'}` }
-      return { result: 'The panel is finishing their Substack strategy, doing only what was missing. It appears there, complete, when all ten cards are finished. The same as pressing Finish my strategy in the panel.' }
+      return { result: 'Uncapped is finishing their Substack strategy, doing only what was missing. It appears there, complete, when all ten cards are finished.' }
     }
     const out = subOut(await read($, workA))
     if (!isV3Strategy(out)) return { result: 'Their Substack strategy is in the earlier format, without post cards, so there is nothing to finish.' }
     const todo = (out.pieces || []).filter((p) => !cardWritten(p)).length
     if (!todo) return { result: 'Every post already has its card. Nothing to write.' }
-    if (cardsRunning) return { result: 'The panel is already writing their cards. Each appears in Posts when it is ready.' }
+    if (cardsRunning) return { result: 'Their cards are already being written. Each appears in Posts when it is ready.' }
     await go($, { view: 'builder', builder: 'substack', stage: 'result' })
     void runSubstackCards($)
-    return { result: `The panel is now researching and writing the ${todo} missing card${todo === 1 ? '' : 's'}, about ${Math.max(2, Math.round(todo * 0.8) + 2)} minutes. Each appears in Posts as soon as it is ready.` }
-  }).catch(() => ({ result: "Couldn't start writing the cards just now. They can press Write the rest in the panel." }))
+    return { result: `Uncapped is now researching and writing the ${todo} missing card${todo === 1 ? '' : 's'}, about ${Math.max(2, Math.round(todo * 0.8) + 2)} minutes. Each appears in Posts as soon as it is ready.` }
+  }).catch(() => ({ result: "Couldn't start writing the cards just now. They can ask you to write the rest." }))
 
   // Substack v3: a new idea for one post, agreed in the chat. Its card is researched and written again.
   on('tool.call', { tool: 'mcp__uncapped__change_post_idea' }, async ($, e) => {
@@ -8717,7 +8860,7 @@ export const register: Register = (on) => {
     }, ['substack'])
     await go($, { view: 'builder', builder: 'substack', stage: 'result' })
     void runSubstackCards($, [i])
-    return { result: `Saved: post ${i + 1} is now "${clean(e.headline)}". The panel is researching it and writing its new card, about 3 minutes; it appears in Posts when it's ready. Their other posts are unchanged.` }
+    return { result: `Saved: post ${i + 1} is now "${clean(e.headline)}". Uncapped is researching it and writing its new card, about 3 minutes; it is in Posts when it's ready. Their other posts are unchanged.` }
   }).catch(() => ({ result: "Couldn't change that post just now. Nothing was changed." }))
 
   // Research agents: searches and page reads are capped here, not by trust.
@@ -8762,16 +8905,16 @@ export const register: Register = (on) => {
     const f = await feedbackContext($)
     const fb = { kind: KINDS[e.kind] ? e.kind : 'broken', where: f.where, goal: e.trying || f.guess, goalGuessed: !e.trying && Boolean(f.guess), goalConfirmed: Boolean(e.trying), expected: e.expected || '', actual: e.actual || '', details: e.details || '', replyTo: e.reply_to || '', screenshot: false, excerpt: '', context: f.context, removed: {}, stage: 'review', status: null, savedAs: null, returnTo: f.nav }
     await setUi($, { feedback: fb })
-    return { result: `Report ready (also shown in the panel under Feedback or help). Show it to them and ask them to confirm or change anything before opening the draft:\n\nTo: ${FEEDBACK_TO}\nSubject: ${subjectFor(fb)}\n\n${reportText(fb)}` }
-  }).catch(() => ({ result: "Couldn't prepare the report. They can press Feedback at the bottom of the panel instead." }))
+    return { result: `Report ready. Show it to them and ask them to confirm or change anything before opening the draft:\n\nTo: ${FEEDBACK_TO}\nSubject: ${subjectFor(fb)}\n\n${reportText(fb)}` }
+  }).catch(() => ({ result: "Couldn't prepare the report. They can email it to Gabriela themselves instead." }))
 
   on('tool.call', { tool: 'mcp__uncapped__open_feedback_draft' }, async ($) => {
     const r = await openEmailDraft($)
     if (r.status === 'opened') return { result: `A draft email to Gabriela is open in their email app. It is NOT sent until they press Send there. A copy is saved at ${r.savedAs}.` }
     if (r.status === 'bad_email') return { result: "Not opened: the reply address doesn't look like an email address. Ask them to fix it or leave it out." }
     if (r.status === 'none') return { result: 'No report is prepared yet. Use prepare_feedback first.' }
-    return { result: `Couldn't open their email app. Nothing was sent. The report is saved at ${r.savedAs || 'my-work/support'}. Offer to try again, or they can press Copy report in the panel's Feedback or help screen and paste it into an email to ${FEEDBACK_TO}.` }
-  }).catch(() => ({ result: "Couldn't open the email draft. Nothing was sent; the report is still in the panel's Feedback or help screen." }))
+    return { result: `Couldn't open their email app. Nothing was sent. The report is saved at ${r.savedAs || 'my-work/support'}. Offer to try again, or they can copy the report above and paste it into an email to ${FEEDBACK_TO}.` }
+  }).catch(() => ({ result: "Couldn't open the email draft. Nothing was sent; the report is saved with their work." }))
 
   on('tool.call', { tool: 'mcp__uncapped__open_pages' }, async ($) => {
     const r = await showPages($)
