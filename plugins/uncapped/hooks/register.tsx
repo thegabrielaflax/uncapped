@@ -267,7 +267,15 @@ async function ask($, { system, prompt }, opts) {
   try {
     const model = deep ? MODEL_DEEP : MODEL_BALANCED
     const first = await call('write', { model, system, prompt, maxTokens, effort: opts.effort })
-    if (!first.isAnswered) {
+    // A reply with no text that spent the whole budget was cut off before its
+    // first word: every token went on thinking and none on writing. That is the
+    // same fault as a reply cut off mid-sentence, so it takes the same one
+    // bounded recovery (lib/replies.js), which asks again with less thinking.
+    // Reported 23 Nov by a customer whose garden failed three times running:
+    // 26,048 tokens spent against a 24,000 cap, and not a word written.
+    const noWordsWritten = !raw && !first.isAnswered && first.reason === 'empty-reply'
+      && Number(first.usage?.output_tokens || 0) >= maxTokens * 0.97
+    if (!first.isAnswered && !noWordsWritten) {
       failure = { what: first.reason === 'aborted' ? (stopped ? 'You stopped it.' : `It took longer than ${Math.round(waitMs / 60000)} minutes, so Uncapped stopped waiting.`) : first.reason === 'api-error' ? `Claude couldn't answer just now${first.status === 429 || first.status === 529 ? ' (it was busy, or your plan is near its usage limit)' : ''}.` : 'Claude sent back an empty reply.', why: `${first.reason}${first.status ? ` ${first.status}` : ''}` }
     } else if (raw) {
       result = first.text
@@ -587,7 +595,7 @@ async function runEarlyRead($, place = 'discover-next', fresh = false) {
     label: 'Growing your portfolio garden',
     explain: 'Several directions you could earn from, each with who buys it, a price to test, the money it could make in your hours, and a first step.',
     steps: ['Starting from your week, your money goal and your energy', 'Finding the threads that run through what you have done and want', 'Checking each direction has a buyer with a reason to pay now', 'Working out the money and time for each one'],
-    builder: 'discover', kind: 'early', name: 'early', deep: true, maxTokens: 24000, effort: 'medium', place, fresh,
+    builder: 'discover', kind: 'early', name: 'early', deep: true, maxTokens: 32000, effort: 'medium', place, fresh,
   })
   if (!out) return null
   out.directions = (out.directions || []).map((x, i) => ({ ...x, id: x.id || `d${i + 1}` }))
@@ -627,7 +635,7 @@ async function sharpen($, place = 'garden-sharpen', fresh = false) {
     label: 'Sharpening the directions you liked',
     explain: 'Developing what you loved, working out what would decide the maybes, and dropping what you said no to.',
     steps: ['Keeping what you loved and developing it', 'Working out what would decide the maybes', 'Dropping what you said no to', 'Re-checking the money and time for each one'],
-    builder: 'discover', kind: 'early', name: 'sharpen', deep: true, maxTokens: 24000, effort: 'medium', place, fresh,
+    builder: 'discover', kind: 'early', name: 'sharpen', deep: true, maxTokens: 32000, effort: 'medium', place, fresh,
   })
   if (!out) return
   const prev = w.discover.reactions

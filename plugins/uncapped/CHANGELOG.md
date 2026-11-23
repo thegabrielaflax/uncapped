@@ -1,7 +1,11 @@
 # What's new in Uncapped
 
+## 0.6.4
+- **Your portfolio garden now arrives even when Claude takes a long time thinking about it.** If Claude spent all its room thinking and had none left to write with, Uncapped stopped and told you it got an empty reply, however many times you tried. It now asks again, with less thinking and more room, and your garden comes through.
+- **The garden gets more room to begin with**, so the longest, richest ones finish on the first ask.
+
 ## 0.6.3
-- **Every idea in your garden is now its own idea.** Press one and you see that idea: who buys it, what makes them act, what they get, what it would take, a price worth testing and how to test it. Before this, pressing an idea opened the direction it grew from, and a direction describes only the offer it leads with — a different name, a different buyer, a different price. So you were looking at the wrong thing. Thank you to Cory and Jen, who reported it.
+- **Every idea in your garden is now its own idea.** Press one and you see that idea: who buys it, what makes them act, what they get, what it would take, a price worth testing and how to test it. Before this, pressing an idea opened the direction it grew from, and a direction describes only the offer it leads with — a different name, a different buyer, a different price. So you were looking at the wrong thing.
 - **Each idea carries the words that make it your offer.** "Start with this offer" now sits on the idea itself, so the one you point at is the one you get, and its buyer, its problem, its price and its first step come with it.
 - **Your garden shows which idea you chose**, and your offer page links straight back to it.
 - **Choosing a different idea no longer overwrites the offer you had.** Both are kept. The one you are working on is the one you chose last.
@@ -30,7 +34,6 @@
 
 ## 0.4.2
 - **The panel now comes in light or dark.** If you use Claude in dark mode, the panel used to show white words on its cream background, which made buttons and the steps down the left very hard to read. Uncapped now asks you once, on Home, which one you're in, and you can change it any time in **Updates & help**. It remembers your choice, in this chat and the next.
-- Thank you to Lorraine, who reported this.
 
 ## 0.4.1
 - **Uncapped now installs from Pivot School's GitHub repository.** Claude changed which addresses it accepts for plugins, so the install address is now `thegabrielaflax/uncapped`. Nothing changes for you if Uncapped is already installed.

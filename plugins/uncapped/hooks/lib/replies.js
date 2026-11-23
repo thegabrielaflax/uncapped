@@ -229,7 +229,7 @@ export async function readWithRecovery({ first, model, system, prompt, maxTokens
     const again = await call('rewrite, shorter thinking', { model, system, prompt, maxTokens: Math.min(Math.round(maxTokens * 1.5), 32000), effort: 'low' })
     got = again.isAnswered ? readReply(again.text) : { ok: false, reason: 'unanswered', detail: again.reason }
     if (!got.ok && again.isAnswered) await keep('rewrite', again, got.reason)
-    if (!got.ok) failure = { what: "Claude's reply was longer than Uncapped allows and was cut off before the end. It tried once more, with less thinking, and that was cut off too.", why: `cut off at the reply limit (${maxTokens} tokens), then ${got.reason}` }
+    if (!got.ok) failure = { what: "Claude ran out of room before it could finish writing this. It tried once more, with less thinking, and ran out again.", why: `cut off at the reply limit (${maxTokens} tokens), then ${got.reason}` }
   } else if (!got.ok && (got.reason === 'malformed' || got.reason === 'no-json') && !stopped()) {
     const fixReq = repairPrompt(first.text)
     const fixed = await call('repair syntax', { model: 'haiku', system: fixReq.system, prompt: fixReq.prompt, maxTokens: Math.min(Math.ceil(first.text.length / 2.5) + 500, 24000), effort: 'low' })
