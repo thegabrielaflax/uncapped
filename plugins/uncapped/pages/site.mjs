@@ -60,7 +60,28 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
   const who = txt(work.profile?.name)
   const mine = named ? `${who}'s` : 'Your'
   const greeting = named ? `Good morning, ${who}.` : 'Good morning.'
-  const themesAnswered = Object.keys(work.profile?.answers || {}).filter((k) => has(work.profile.answers[k])).length
+  // ONE list of themes, counted ONCE. Until 26 Nov the Discover page walked
+  // all ten (its own list, reaching into limits and energy for the last two)
+  // while every other page counted the keys of profile.answers and got eight.
+  // A customer printed both pages from the same work a minute apart: "10 of
+  // 10 themes saved" on Discover, and "you have answered 8 themes, a few more
+  // and Claude can grow your garden" on her garden. Two counters, one of them
+  // telling her to redo work she had already finished.
+  const lim = work.profile?.limits || {}
+  const nrg = work.profile?.energy || {}
+  const money = [lim.income && `${lim.currency || '$'}${lim.income} a month`, lim.goal].filter(Boolean).join(' \u00b7 ')
+  const weekText = [lim.hours && `${lim.hours} hours a week`, money].filter(Boolean).join('. ')
+  const energyText = [nrg.more && `More of: ${nrg.more}`, nrg.less && `Less of: ${nrg.less}`,
+    nrg.never && `Never again: ${nrg.never}`].filter(Boolean).join('\n\n')
+  const THEMES = [['start', 'Where you are starting from'], ['now', 'What you do now'],
+    ['led', 'What led you here'], ['askedFor', 'What people ask you for'],
+    ['know', 'What you know well'], ['outside', 'Outside work'],
+    ['try', 'What you want to try'], ['buyers', 'Who you already know'],
+    ['week', 'Your week and your goal', weekText], ['energy', 'What gives you energy', energyText]]
+  const answerFor = ([k, , own]) => own !== undefined ? own : work.profile?.answers?.[k]
+  const saved = THEMES.filter((t) => has(answerFor(t)))
+  const themesAnswered = saved.length
+  const allAnswered = saved.length === THEMES.length
   const started = themesAnswered > 0 || work.discover?.status === 'in_progress'
 
   // What to say on a page whose work does not exist yet: why it is empty, what
@@ -290,11 +311,13 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
         hero({ title: greeting,
           through: 'Discover is under way.',
           read: 'Your answers are saved as you give them. When there are enough, Claude grows your Portfolio Garden from them, and the rest of this site fills in from there.',
-          stats: [[`${themesAnswered} of 7`, 'Themes answered']] }),
-        empty('Carry on with Discover',
-          `You have answered ${themesAnswered} theme${themesAnswered === 1 ? '' : 's'}. A few more and there is enough to grow your garden.`,
-          'You can stop and come back. Nothing is lost.',
-          'Carry on with Discover',
+          stats: [[`${themesAnswered} of ${THEMES.length}`, 'Themes answered']] }),
+        empty(allAnswered ? 'Ready to grow your garden' : 'Carry on with Discover',
+          allAnswered
+            ? `Your answers are all in: ${themesAnswered} of ${THEMES.length} themes. Your garden has not been grown from them yet.`
+            : `You have answered ${themesAnswered} of ${THEMES.length} themes. A few more and there is enough to grow your garden.`,
+          allAnswered ? 'Ask for your garden and the rest of this site fills in.' : 'You can stop and come back. Nothing is lost.',
+          allAnswered ? 'Grow my garden now' : 'Carry on with Discover',
           ['See what you have said', 'discover.html']) +
         sect('What comes next') +
         `<div class="chain">
@@ -358,19 +381,6 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
           null,) +
         nextStep('Your offer', 'offer.html', false, 'Your offer is chosen from the garden Discover grows.'))
     }
-    const lim = work.profile?.limits || {}
-    const nrg = work.profile?.energy || {}
-    const money = [lim.income && `${lim.currency || '$'}${lim.income} a month`, lim.goal].filter(Boolean).join(' \u00b7 ')
-    const weekText = [lim.hours && `${lim.hours} hours a week`, money].filter(Boolean).join('. ')
-    const energyText = [nrg.more && `More of: ${nrg.more}`, nrg.less && `Less of: ${nrg.less}`,
-      nrg.never && `Never again: ${nrg.never}`].filter(Boolean).join('\n\n')
-    const THEMES = [['start', 'Where you are starting from'], ['now', 'What you do now'],
-      ['led', 'What led you here'], ['askedFor', 'What people ask you for'],
-      ['know', 'What you know well'], ['outside', 'Outside work'],
-      ['try', 'What you want to try'], ['buyers', 'Who you already know'],
-      ['week', 'Your week and your goal', weekText], ['energy', 'What gives you energy', energyText]]
-    const answerFor = ([k, , own]) => own !== undefined ? own : work.profile?.answers?.[k]
-    const saved = THEMES.filter((t) => has(answerFor(t)))
     return page('discover.html', 'Discover',
       hero({ eyebrow: 'Step 1 of 4 \u00b7 Find it', title: 'Discover',
         through: g ? g.throughLine : 'What could you get paid for?',
@@ -402,12 +412,14 @@ export function buildSite({ work, V, VD, C, LIVE_STEPS, actionList = [], fonts =
         hero({ title: 'Your Portfolio Garden',
           through: 'Everything you could get paid for, in one place.',
           read: 'A garden grows from your Discover answers: several directions, each with ideas you could test, across the five ways to earn.' }),
-        empty(started ? 'Still growing' : 'Nothing planted yet',
-          started
-            ? `You have answered ${themesAnswered} theme${themesAnswered === 1 ? '' : 's'}. A few more and Claude can grow your garden.`
-            : 'Your garden grows from Discover. Answer the questions first and this fills itself.',
-          started ? 'Carry on with Discover, then ask for your garden.' : 'Discover comes first.',
-          started ? 'Carry on with Discover' : 'Start Discover',
+        empty(!started ? 'Nothing planted yet' : allAnswered ? 'Ready to grow' : 'Still growing',
+          !started
+            ? 'Your garden grows from Discover. Answer the questions first and this fills itself.'
+            : allAnswered
+              ? `Your answers are all in: ${themesAnswered} of ${THEMES.length} themes. Your garden has not been grown from them yet.`
+              : `You have answered ${themesAnswered} of ${THEMES.length} themes. You can carry on, or grow your garden from what you have.`,
+          !started ? 'Discover comes first.' : allAnswered ? 'Ask for your garden and this page fills in.' : 'Carry on with Discover, or ask for your garden whenever you are ready.',
+          !started ? 'Start Discover' : allAnswered ? 'Grow my garden now' : 'Carry on with Discover',
           ['See the Discover page', 'discover.html']))
     }
     const tile = (it) => {

@@ -1,5 +1,9 @@
 # What's new in Uncapped
 
+## 0.6.5
+- **Your Portfolio Garden no longer sends you back to Discover when you have already finished it.** The two pages were counting your themes differently, eight against ten, so one of them was always wrong. They now count the same way, and when your answers are all in the page says so.
+- **"Grow my garden now" is on your garden page and your home page**, not only on the Discover page, so the way on is where you go looking for it.
+
 ## 0.6.4
 - **Your portfolio garden now arrives even when Claude takes a long time thinking about it.** If Claude spent all its room thinking and had none left to write with, Uncapped stopped and told you it got an empty reply, however many times you tried. It now asks again, with less thinking and more room, and your garden comes through.
 - **The garden gets more room to begin with**, so the longest, richest ones finish on the first ask.
